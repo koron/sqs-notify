@@ -22,7 +22,7 @@ func dispatchMessages(queue *sqs.Queue, messages []sqs.Message, bodyHandler func
 	errorList := make([]error, len(messages))
 	errorCount := 0
 
-	// Prepare for delete messages.
+	// Prepare to delete received messages.
 	deleteList := make([]sqs.Message, len(messages))
 	deleteCount := 0
 	defer func() {
@@ -67,7 +67,10 @@ func listenQueue(queue *sqs.Queue, bodyHandler func(string) error) (err error) {
 }
 
 func usage() {
-	fmt.Printf(`Usage: %s {queue name} {command}
+	fmt.Printf(`Usage: %s [OPTIONS] {queue name} {command}
+
+OPTIONS:
+  -region {region} :    name of region
 
 Environment variables:
   AWS_ACCESS_KEY_ID
@@ -103,25 +106,38 @@ func runCmd(cmd *exec.Cmd, msgbody string) (err error) {
 }
 
 func main() {
+	var regionName string
+	flag.StringVar(&regionName, "region", "us-east-1",
+		"AWS Region for queue")
 	flag.Parse()
-	args := flag.Args()
 
+	// Parse arguments.
+	args := flag.Args()
 	if len(args) < 2 {
 		usage()
 	}
-	name := args[0]
+	queueName := args[0]
 
+	// Determine a region.
+	region, flag := aws.Regions[regionName]
+	if !flag {
+		log.Fatalln("sqs-notify:", "unknown region:", regionName)
+	}
+
+	// Retrieve an AWS auth.
 	auth, err := aws.EnvAuth()
 	if err != nil {
 		log.Fatalln("sqs-notify:", err)
 	}
 
-	queue, err := openQueue(auth, aws.APNortheast, name)
+	// Open a queue.
+	queue, err := openQueue(auth, region, queueName)
 	if err != nil {
 		log.Fatalln("sqs-notify:", err)
 	}
 
-	listenQueue(queue, func(body string) (error) {
+	// Listen the queue.
+	listenQueue(queue, func(body string) error {
 		cmd := exec.Command(args[1], args[2:]...)
 		return runCmd(cmd, body)
 	})
