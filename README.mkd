@@ -17,7 +17,7 @@ Basic usage:
 
     sqs-notify [-region {region}] {queue name} {command and args}
 
-1.  Set environment variables
+1.  Set two environment variables to specify AWS auth
     *   `AWS_ACCESS_KEY_ID`
     *   `AWS_SECRET_ACCESS_KEY`
 2.  Run sqs-notify
