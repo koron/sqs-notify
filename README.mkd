@@ -21,9 +21,12 @@ Basic usage:
     *   `AWS_ACCESS_KEY_ID`
     *   `AWS_SECRET_ACCESS_KEY`
 2.  Run sqs-notify
+
     ```
     $ sqs-notify your-queue cat
     ```
+
+    This example just copy messages to STDOUT
 
 ## Limitations
 
