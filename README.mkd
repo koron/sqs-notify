@@ -1,0 +1,30 @@
+# SQS notify
+
+Listen a SQS queue, execute a command when received.  A message body is passed
+as STDIN to the command.
+
+## Installation
+
+```
+$ go get github.com/koron/sqs-notify
+```
+
+Require git and bzr command for dependency.
+
+## Usage
+
+Basic usage:
+
+    sqs-notify {queue name} {command}
+
+1.  Set environment variables
+    *   `AWS_ACCESS_KEY_ID`
+    *   `AWS_SECRET_ACCESS_KEY`
+2.  Run sqs-notify
+    ```
+    $ sqs-notify your-queue cat
+    ```
+
+## Limitations
+
+*   APNortheast only.
