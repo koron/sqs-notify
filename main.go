@@ -1,63 +1,16 @@
 package main
 
 import (
+	"./sqsnotify"
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/Mistobaan/sqs"
 	"io"
 	"launchpad.net/goamz/aws"
 	"log"
 	"os"
 	"os/exec"
 )
-
-type SQSNotify struct {
-	auth   aws.Auth
-	region aws.Region
-	name   string
-
-	queue *sqs.Queue
-}
-
-func New(auth aws.Auth, region aws.Region, name string) *SQSNotify {
-	return &SQSNotify{auth, region, name, nil}
-}
-
-func (n *SQSNotify) Open() (err error) {
-	awsSQS := sqs.New(n.auth, n.region)
-	n.queue, err = awsSQS.GetQueue(n.name)
-	return
-}
-
-func (n *SQSNotify) Listen(handler func(*sqs.Message, func() error) error) (err error) {
-	for {
-		resp, err := n.queue.ReceiveMessage(10)
-		if err != nil {
-			return err
-		}
-
-		for _, m := range resp.Messages {
-			d := n.deleter(&m)
-			err = handler(&m, d)
-			if err != nil {
-				return err
-			}
-		}
-	}
-}
-
-func (n *SQSNotify) deleter(m *sqs.Message) func() error {
-	deleted := false
-	return func() (err error) {
-		if deleted {
-			return
-		}
-		deleted = true
-		_, err = n.queue.DeleteMessage(m)
-		return
-	}
-}
 
 func usage() {
 	fmt.Printf(`Usage: %s [OPTIONS] {queue name} {command}
@@ -98,10 +51,9 @@ func runCmd(cmd *exec.Cmd, msgbody string) (err error) {
 	return cmd.Wait()
 }
 
-func args2notify() (*SQSNotify, error) {
+func parseArgs() (*sqsnotify.SQSNotify, error) {
 	var regionName string
-	flag.StringVar(&regionName, "region", "us-east-1",
-		"AWS Region for queue")
+	flag.StringVar(&regionName, "region", "us-east-1", "AWS Region for queue")
 	flag.Parse()
 
 	// Parse arguments.
@@ -123,26 +75,32 @@ func args2notify() (*SQSNotify, error) {
 		return nil, err
 	}
 
-	return New(auth, region, queueName), nil
+	return sqsnotify.New(auth, region, queueName), nil
 }
 
-func run(n *SQSNotify) (err error) {
+func run(n *sqsnotify.SQSNotify) (err error) {
 	// Open a queue.
 	err = n.Open()
 	if err != nil {
 		return
 	}
 
-	// Listen the queue.
-	err = n.Listen(func(m *sqs.Message, d func() error) (err error) {
+	// Listen queue.
+	c, err := n.Listen()
+	if err != nil {
+		return
+	}
+
+	// Receive *sqsnotify.SQSMessage via channel.
+	for _ = range c {
 		// TODO:
-		return nil
-	})
+	}
+
 	return
 }
 
 func main() {
-	n, err := args2notify()
+	n, err := parseArgs()
 	if err != nil {
 		log.Fatalln("sqs-notify:", err)
 	}
