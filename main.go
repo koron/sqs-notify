@@ -11,6 +11,53 @@ import (
 	"os/exec"
 )
 
+type notify struct {
+	auth   aws.Auth
+	region aws.Region
+	name   string
+
+	queue *sqs.Queue
+}
+
+func NewNotify(auth aws.Auth, region aws.Region, name string) *notify {
+	return &notify{auth, region, name, nil}
+}
+
+func (n *notify) Open() (err error) {
+	awsSQS := sqs.New(n.auth, n.region)
+	n.queue, err = awsSQS.GetQueue(n.name)
+	return
+}
+
+func (n *notify) Listen(handler func(*sqs.Message, func() error) error) (err error) {
+	for {
+		resp, err := n.queue.ReceiveMessage(10)
+		if err != nil {
+			return err
+		}
+
+		for _, m := range resp.Messages {
+			d := n.deleter(&m)
+			err = handler(&m, d)
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (n *notify) deleter(m *sqs.Message) func() error {
+	deleted := false
+	return func() (err error) {
+		if deleted {
+			return
+		}
+		deleted = true
+		_, err = n.queue.DeleteMessage(m)
+		return
+	}
+}
+
 func openQueue(auth aws.Auth, region aws.Region, name string) (queue *sqs.Queue, err error) {
 	awsSQS := sqs.New(auth, aws.APNortheast)
 	queue, err = awsSQS.GetQueue(name)
@@ -105,7 +152,7 @@ func runCmd(cmd *exec.Cmd, msgbody string) (err error) {
 	return cmd.Wait()
 }
 
-func main() {
+func args2notify() *notify {
 	var regionName string
 	flag.StringVar(&regionName, "region", "us-east-1",
 		"AWS Region for queue")
@@ -130,15 +177,29 @@ func main() {
 		log.Fatalln("sqs-notify:", err)
 	}
 
+	return NewNotify(auth, region, queueName)
+}
+
+func run(n *notify) (err error) {
 	// Open a queue.
-	queue, err := openQueue(auth, region, queueName)
+	err = n.Open()
 	if err != nil {
+		return
 		log.Fatalln("sqs-notify:", err)
 	}
 
 	// Listen the queue.
-	listenQueue(queue, func(body string) error {
-		cmd := exec.Command(args[1], args[2:]...)
-		return runCmd(cmd, body)
+	err = n.Listen(func(m *sqs.Message, d func() error) (err error) {
+		// TODO:
+		return nil
 	})
+	return
+}
+
+func main() {
+	n := args2notify()
+	err := run(n)
+	if err != nil {
+		log.Fatalln("sqs-notify:", err)
+	}
 }

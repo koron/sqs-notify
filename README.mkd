@@ -11,6 +11,13 @@ $ go get github.com/koron/sqs-notify
 
 Require git and bzr command for dependency.
 
+### for developer
+
+```
+$ go get github.com/Mistobaan/sqs
+$ go get launchpad.net/goamz/aws
+```
+
 ## Usage
 
 Basic usage:
