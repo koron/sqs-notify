@@ -91,9 +91,42 @@ func run(n *sqsnotify.SQSNotify) (err error) {
 		return
 	}
 
+	w := NewWorkers(4) // FIXME: user args.
+	args := flag.Args()
+
 	// Receive *sqsnotify.SQSMessage via channel.
-	for _ = range c {
-		// TODO:
+	for m := range c {
+		if m.Error != nil {
+			return m.Error
+		}
+
+		// Create and setup a exec.Cmd.
+		cmd := exec.Command(args[1], args[2:]...)
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			return err
+		}
+
+		w.Run(WorkerJob{cmd, func(r WorkerResult) {
+			if r.ProcessState != nil && r.ProcessState.Success() {
+				m.Delete()
+				// FIXME: log it when failed to delete.
+			}
+		}})
+		go io.Copy(os.Stdout, stdout)
+		go io.Copy(os.Stderr, stderr)
+		go func() {
+			stdin.Write([]byte(*m.Body()))
+			stdin.Close()
+		}()
 	}
 
 	return
