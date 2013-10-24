@@ -11,7 +11,30 @@ $ go get github.com/koron/sqs-notify
 
 Require git and bzr command for dependency.
 
+### for developer
+
+```
+$ go get launchpad.net/goamz/aws
+$ go get github.com/Mistobaan/sqs
+```
+
 ## Usage
+
+From online help.
+
+```
+Usage: sqs-notify [OPTIONS] {queue name} {command and args...}
+
+OPTIONS:
+  -region {region} :    name of region (default: us-east-1)
+  -worker {num} :       num of workers (default: 4)
+
+Environment variables:
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
+```
+
+### Guide
 
 Basic usage:
 
@@ -43,6 +66,9 @@ Basic usage:
 *   `ap-southeast-2`
 *   `ap-northeast-1`
 *   `sp-east-1`
+
+### 
+
 
 ## Limitations
 
