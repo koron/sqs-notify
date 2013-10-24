@@ -3,6 +3,9 @@
 Listen a SQS queue, execute a command when received.  A message body is passed
 as STDIN to the command.
 
+(in Japanese) SQS を監視しメッセージを取得したら指定のコマンドを実行します。
+メッセージの内容はコマンドの標準入力として渡します。
+
 ## Installation
 
 ```
@@ -28,6 +31,7 @@ Usage: sqs-notify [OPTIONS] {queue name} {command and args...}
 OPTIONS:
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
+  -nowait :             delete message without end of command
 
 Environment variables:
   AWS_ACCESS_KEY_ID

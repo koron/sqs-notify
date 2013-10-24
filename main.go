@@ -17,6 +17,7 @@ const progname = "sqs-notify"
 type config struct {
 	region string
 	worker int
+	nowait bool
 	queue string
 	cmd string
 	args []string
@@ -26,6 +27,7 @@ type app struct {
 	auth aws.Auth
 	region aws.Region
 	worker int
+	nowait bool
 	notify *sqsnotify.SQSNotify
 	cmd string
 	args []string
@@ -37,6 +39,7 @@ func usage() {
 OPTIONS:
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
+  -nowait :             didn't wait end of command to delete message
 
 Environment variables:
   AWS_ACCESS_KEY_ID
@@ -48,8 +51,10 @@ Environment variables:
 func getConfig() (*config, error) {
 	var region string
 	var worker int
+	var nowait bool
 	flag.StringVar(&region, "region", "us-east-1", "AWS Region for queue")
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
+	flag.BoolVar(&nowait, "nowait", false, "Didn't wait end of command")
 	flag.Parse()
 
 	// Parse arguments.
@@ -58,7 +63,7 @@ func getConfig() (*config, error) {
 		usage()
 	}
 
-	return &config{region, worker, args[0], args[1], args[2:]}, nil
+	return &config{region, worker, nowait, args[0], args[1], args[2:]}, nil
 }
 
 func (c *config) toApp() (*app, error) {
@@ -76,7 +81,7 @@ func (c *config) toApp() (*app, error) {
 
 	notify := sqsnotify.New(auth, region, c.queue)
 
-	return &app{auth, region, c.worker, notify, c.cmd, c.args}, nil
+	return &app{auth, region, c.worker, c.nowait, notify, c.cmd, c.args}, nil
 }
 
 func (a *app) run() (err error) {
@@ -115,12 +120,16 @@ func (a *app) run() (err error) {
 			return err
 		}
 
-		w.Run(WorkerJob{cmd, func(r WorkerResult) {
-			if r.ProcessState != nil && r.ProcessState.Success() {
-				m.Delete()
-				// FIXME: log it when failed to delete.
-			}
-		}})
+		if a.nowait {
+			m.Delete() // FIXME: log it when failed to delete.
+			w.Run(WorkerJob{cmd, nil})
+		} else {
+			w.Run(WorkerJob{cmd, func(r WorkerResult) {
+				if r.ProcessState != nil && r.ProcessState.Success() {
+					m.Delete() // FIXME: log it when failed to delete.
+				}
+			}})
+		}
 		go io.Copy(os.Stdout, stdout)
 		go io.Copy(os.Stderr, stderr)
 		go func() {
