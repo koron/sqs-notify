@@ -14,8 +14,8 @@ Require git and bzr command for dependency.
 ### for developer
 
 ```
-$ go get github.com/Mistobaan/sqs
 $ go get launchpad.net/goamz/aws
+$ go get github.com/Mistobaan/sqs
 ```
 
 ## Usage
