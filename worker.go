@@ -9,12 +9,12 @@ import (
 
 type WorkerResult struct {
 	Error error
-	State *os.ProcessState
+	ProcessState *os.ProcessState
 }
 
 type WorkerJob struct {
-	cmd *exec.Cmd
-	finish func(WorkerResult)
+	Cmd *exec.Cmd
+	Finish func(WorkerResult)
 }
 
 type Workers struct {
@@ -36,18 +36,21 @@ func NewWorkers(num int) (*Workers) {
 func (w *Workers) startWorker(num int, jobs chan WorkerJob) {
 	for j := range jobs {
 		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, os.Interrupt)
 		go func() {
 			switch <-sig {
 			case os.Interrupt:
-				j.cmd.Process.Kill()
+				j.Cmd.Process.Kill()
 			}
 		}()
-		err := j.cmd.Run()
+
+		signal.Notify(sig, os.Interrupt)
+		err := j.Cmd.Run()
+		signal.Stop(sig)
 		close(sig)
-		res := WorkerResult{err, j.cmd.ProcessState}
-		if j.finish != nil {
-			j.finish(res)
+
+		res := WorkerResult{err, j.Cmd.ProcessState}
+		if j.Finish != nil {
+			j.Finish(res)
 		}
 		w.wait.Done()
 	}
