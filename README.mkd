@@ -31,7 +31,7 @@ Usage: sqs-notify [OPTIONS] {queue name} {command and args...}
 OPTIONS:
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
-  -nowait :             delete message without end of command
+  -nowait :             didn't wait end of command to delete message
 
 Environment variables:
   AWS_ACCESS_KEY_ID
