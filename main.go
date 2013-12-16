@@ -1,10 +1,10 @@
 package main
 
 import (
-	"./sqsnotify"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/koron/sqs-notify/sqsnotify"
 	"io"
 	"launchpad.net/goamz/aws"
 	"log"
