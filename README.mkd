@@ -57,7 +57,7 @@ Basic usage:
     via ap-northeast-1 region, use below command.
 
     ```
-    $ sqs-notify -r ap-northeast-1 your-queue cat
+    $ sqs-notify -region ap-northeast-1 your-queue cat
     ```
 
 ### Name of regions
@@ -71,9 +71,31 @@ Basic usage:
 *   `ap-northeast-1`
 *   `sp-east-1`
 
-### 
-
-
 ## Limitations
 
-Not known.
+### LF at EOF
+
+When message doesn't have LF at EOF (end of file/message), the last line can't
+be handled by `read` shell command or so.  This is limitation of `read`
+command, not sqs-notify.  Therefore this kind of scripts don't work correctly
+for messages without LF at EOF:
+
+```sh
+#!/bin/sh
+while read line
+do
+  echo "received: $line"
+done
+```
+
+To work around this problem, use `xargs` like this.
+
+```sh
+#!/bin/sh
+xargs -0 echo | (
+while read line
+do
+  echo "received: $line"
+done
+)
+```
