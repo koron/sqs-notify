@@ -8,8 +8,11 @@ import (
 	"io"
 	"launchpad.net/goamz/aws"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
+	"strconv"
+	"time"
 )
 
 const progname = "sqs-notify"
@@ -18,6 +21,7 @@ type config struct {
 	region string
 	worker int
 	nowait bool
+	retryMax int
 	queue string
 	cmd string
 	args []string
@@ -28,6 +32,8 @@ type app struct {
 	region aws.Region
 	worker int
 	nowait bool
+	// retryMax is max count of retry.
+	retryMax int
 	notify *sqsnotify.SQSNotify
 	cmd string
 	args []string
@@ -40,6 +46,7 @@ OPTIONS:
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
   -nowait :             didn't wait end of command to delete message
+  -retrymax {num} :     num of retry count (default: 4)
 
 Environment variables:
   AWS_ACCESS_KEY_ID
@@ -52,9 +59,11 @@ func getConfig() (*config, error) {
 	var region string
 	var worker int
 	var nowait bool
+	var retryMax int
 	flag.StringVar(&region, "region", "us-east-1", "AWS Region for queue")
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
 	flag.BoolVar(&nowait, "nowait", false, "Didn't wait end of command")
+	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
 	flag.Parse()
 
 	// Parse arguments.
@@ -63,7 +72,8 @@ func getConfig() (*config, error) {
 		usage()
 	}
 
-	return &config{region, worker, nowait, args[0], args[1], args[2:]}, nil
+	return &config{region, worker, nowait, retryMax,
+		args[0], args[1], args[2:]}, nil
 }
 
 func (c *config) toApp() (*app, error) {
@@ -81,7 +91,17 @@ func (c *config) toApp() (*app, error) {
 
 	notify := sqsnotify.New(auth, region, c.queue)
 
-	return &app{auth, region, c.worker, c.nowait, notify, c.cmd, c.args}, nil
+	return &app{auth, region, c.worker, c.nowait, c.retryMax,
+		notify, c.cmd, c.args}, nil
+}
+
+func retryDuration(c int) time.Duration {
+	limit := (1 << uint(c)) - 1
+	if limit > 50 {
+		limit = 50
+	}
+	v := rand.Intn(limit)
+	return time.Duration(v * 200) * time.Millisecond
 }
 
 func (a *app) run() (err error) {
@@ -100,9 +120,21 @@ func (a *app) run() (err error) {
 	w := NewWorkers(a.worker)
 
 	// Receive *sqsnotify.SQSMessage via channel.
+	retryCount := 0
 	for m := range c {
 		if m.Error != nil {
-			return m.Error
+			if retryCount >= a.retryMax {
+				log.Println("sqs-notify (abort):", m.Error)
+				return errors.New("Over retry: " + strconv.Itoa(retryCount))
+			} else {
+				log.Println("sqs-notify (retry):", m.Error)
+				retryCount += 1
+				time.Sleep(retryDuration(retryCount))
+				// TODO: sleep before retry.
+				continue
+			}
+		} else {
+			retryCount = 0
 		}
 
 		// Create and setup a exec.Cmd.

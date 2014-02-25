@@ -32,6 +32,7 @@ OPTIONS:
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
   -nowait :             didn't wait end of command to delete message
+  -retrymax {num} :     num of retry count (default: 4)
 
 Environment variables:
   AWS_ACCESS_KEY_ID
