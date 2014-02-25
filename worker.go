@@ -8,22 +8,22 @@ import (
 )
 
 type WorkerResult struct {
-	Error error
+	Error        error
 	ProcessState *os.ProcessState
 }
 
 type WorkerJob struct {
-	Cmd *exec.Cmd
+	Cmd    *exec.Cmd
 	Finish func(WorkerResult)
 }
 
 type Workers struct {
-	num int
+	num  int
 	jobs chan WorkerJob
 	wait *sync.WaitGroup
 }
 
-func NewWorkers(num int) (*Workers) {
+func NewWorkers(num int) *Workers {
 	jobs := make(chan WorkerJob, 100)
 	w := &Workers{num, jobs, &sync.WaitGroup{}}
 

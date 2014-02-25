@@ -18,25 +18,25 @@ import (
 const progname = "sqs-notify"
 
 type config struct {
-	region string
-	worker int
-	nowait bool
+	region   string
+	worker   int
+	nowait   bool
 	retryMax int
-	queue string
-	cmd string
-	args []string
+	queue    string
+	cmd      string
+	args     []string
 }
 
 type app struct {
-	auth aws.Auth
+	auth   aws.Auth
 	region aws.Region
 	worker int
 	nowait bool
 	// retryMax is max count of retry.
 	retryMax int
-	notify *sqsnotify.SQSNotify
-	cmd string
-	args []string
+	notify   *sqsnotify.SQSNotify
+	cmd      string
+	args     []string
 }
 
 func usage() {
@@ -101,7 +101,7 @@ func retryDuration(c int) time.Duration {
 		limit = 50
 	}
 	v := rand.Intn(limit)
-	return time.Duration(v * 200) * time.Millisecond
+	return time.Duration(v*200) * time.Millisecond
 }
 
 func (a *app) run() (err error) {
