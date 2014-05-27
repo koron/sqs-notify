@@ -12,6 +12,12 @@ as STDIN to the command.
 $ go get github.com/koron/sqs-notify
 ```
 
+or update
+
+```
+$ go get -u github.com/koron/sqs-notify
+```
+
 Require git and bzr command for dependency.
 
 ### for developer
@@ -33,6 +39,8 @@ OPTIONS:
   -worker {num} :       num of workers (default: 4)
   -nowait :             didn't wait end of command to delete message
   -retrymax {num} :     num of retry count (default: 4)
+  -logfile {path} :     log file path ("-" for stdout)
+  -pidfile {path} :     pid file path (available with -logfile)
 
 Environment variables:
   AWS_ACCESS_KEY_ID
@@ -100,3 +108,11 @@ do
 done
 )
 ```
+
+### Logging
+
+When `-logfile {FILE PATH}` is given, all messages which received are logged
+into the file.  If FILE PATH is `-`, it output all logs to STDOUT not file.
+
+Using `-pidfile {FILE PATH}` with `-logfile`, sqs-notify writes own PID to the
+file.  You can send SIGHUP to that PID to rotate log.

@@ -7,6 +7,7 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify"
 	"launchpad.net/goamz/aws"
 	"log"
+	"os"
 )
 
 type config struct {
@@ -76,8 +77,12 @@ func (c *config) toApp() (*app, error) {
 	// logfile and pidfile.
 	var l *log.Logger
 	if len(c.logfile) > 0 {
-		w := hupwriter.New(c.logfile, c.pidfile)
-		l = log.New(w, "", log.LstdFlags)
+		if c.logfile == "-" {
+			l = log.New(os.Stdout, "", log.LstdFlags)
+		} else {
+			w := hupwriter.New(c.logfile, c.pidfile)
+			l = log.New(w, "", log.LstdFlags)
+		}
 	}
 
 	notify := sqsnotify.New(auth, region, c.queue)

@@ -37,7 +37,7 @@ OPTIONS:
   -worker {num} :       num of workers (default: 4)
   -nowait :             didn't wait end of command to delete message
   -retrymax {num} :     num of retry count (default: 4)
-  -logfile {path} :     log file path
+  -logfile {path} :     log file path ("-" for stdout)
   -pidfile {path} :     pid file path (available with -logfile)
 
 Environment variables:
