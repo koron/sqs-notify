@@ -17,6 +17,7 @@ import (
 const progname = "sqs-notify"
 
 type app struct {
+	logger *log.Logger
 	auth   aws.Auth
 	region aws.Region
 	worker int

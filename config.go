@@ -3,8 +3,10 @@ package main
 import (
 	"errors"
 	"flag"
+	"github.com/koron/hupwriter"
 	"github.com/koron/sqs-notify/sqsnotify"
 	"launchpad.net/goamz/aws"
+	"log"
 )
 
 type config struct {
@@ -41,6 +43,10 @@ func getConfig() (*config, error) {
 		usage()
 	}
 
+	if len(pidfile) > 0 && len(logfile) == 0 {
+		return nil, errors.New("`-pidfile' requires `-logfile' option")
+	}
+
 	return &config{
 		region:   region,
 		worker:   worker,
@@ -68,12 +74,23 @@ func (c *config) toApp() (*app, error) {
 	}
 
 	// logfile and pidfile.
-	if len(pidfile) > 0 && len(logfile) == 0 {
-		return nil, errors.New("`-pidfile' requires `-logfile' option")
+	var l *log.Logger
+	if len(c.logfile) > 0 {
+		w := hupwriter.New(c.logfile, c.pidfile)
+		l = log.New(w, "", log.LstdFlags)
 	}
 
 	notify := sqsnotify.New(auth, region, c.queue)
 
-	return &app{auth, region, c.worker, c.nowait, c.retryMax,
-		notify, c.cmd, c.args}, nil
+	return &app{
+		logger:	  l,
+		auth:     auth,
+		region:   region,
+		worker:   c.worker,
+		nowait:   c.nowait,
+		retryMax: c.retryMax,
+		notify:   notify,
+		cmd:      c.cmd,
+		args:     c.args,
+	}, nil
 }
