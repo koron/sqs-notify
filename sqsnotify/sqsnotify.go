@@ -42,6 +42,11 @@ func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 	return ch, nil
 }
 
+// Get queue name.
+func (n *SQSNotify) Name() string {
+	return n.name
+}
+
 type SQSMessage struct {
 	Error   error
 	Message *sqs.Message
