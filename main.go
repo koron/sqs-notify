@@ -17,6 +17,7 @@ import (
 const progname = "sqs-notify"
 
 type app struct {
+	logger *log.Logger
 	auth   aws.Auth
 	region aws.Region
 	worker int
@@ -36,6 +37,8 @@ OPTIONS:
   -worker {num} :       num of workers (default: 4)
   -nowait :             didn't wait end of command to delete message
   -retrymax {num} :     num of retry count (default: 4)
+  -logfile {path} :     log file path ("-" for stdout)
+  -pidfile {path} :     pid file path (available with -logfile)
 
 Environment variables:
   AWS_ACCESS_KEY_ID
@@ -51,6 +54,30 @@ func retryDuration(c int) time.Duration {
 	}
 	v := rand.Intn(limit)
 	return time.Duration(v*200) * time.Millisecond
+}
+
+func (a *app) log(v ...interface{}) {
+	if a.logger == nil {
+		return
+	}
+	a.logger.Print(v)
+}
+
+func (a *app) log_ok(m *sqsnotify.SQSMessage, r WorkerResult) {
+	if a.logger == nil {
+		return
+	}
+	// Log as OK.
+	a.logger.Printf("EXECUTED queue:%s body:%#v cmd:%s status:%d",
+		a.notify.Name(), *m.Body(), a.cmd, r.Code)
+}
+
+func (a *app) log_ng(m *sqsnotify.SQSMessage, err error) {
+	if a.logger == nil {
+		return
+	}
+	a.logger.Printf("NOT_EXECUTED - queue:%s body:%#v error:%s",
+		a.notify.Name(), *m.Body(), err)
 }
 
 func (a *app) run() (err error) {
@@ -73,13 +100,15 @@ func (a *app) run() (err error) {
 	for m := range c {
 		if m.Error != nil {
 			if retryCount >= a.retryMax {
+				a.log("abort:", m.Error)
 				log.Println("sqs-notify (abort):", m.Error)
 				return errors.New("Over retry: " + strconv.Itoa(retryCount))
 			} else {
+				a.log("retry:", m.Error)
 				log.Println("sqs-notify (retry):", m.Error)
 				retryCount += 1
+				// sleep before retry.
 				time.Sleep(retryDuration(retryCount))
-				// TODO: sleep before retry.
 				continue
 			}
 		} else {
@@ -90,25 +119,31 @@ func (a *app) run() (err error) {
 		cmd := exec.Command(a.cmd, a.args...)
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
+			a.log_ng(m, err)
 			return err
 		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
+			a.log_ng(m, err)
 			return err
 		}
 		stderr, err := cmd.StderrPipe()
 		if err != nil {
+			a.log_ng(m, err)
 			return err
 		}
 
 		if a.nowait {
 			m.Delete() // FIXME: log it when failed to delete.
-			w.Run(WorkerJob{cmd, nil})
+			w.Run(WorkerJob{cmd, func(r WorkerResult) {
+				a.log_ok(m, r)
+			}})
 		} else {
 			w.Run(WorkerJob{cmd, func(r WorkerResult) {
 				if r.ProcessState != nil && r.ProcessState.Success() {
 					m.Delete() // FIXME: log it when failed to delete.
 				}
+				a.log_ok(m, r)
 			}})
 		}
 		go io.Copy(os.Stdout, stdout)
