@@ -116,3 +116,11 @@ into the file.  If FILE PATH is `-`, it output all logs to STDOUT not file.
 
 Using `-pidfile {FILE PATH}` with `-logfile`, sqs-notify writes own PID to the
 file.  You can send SIGHUP to that PID to rotate log.
+
+Log example:
+
+```
+2014/05/28 00:13:29 EXECUTED queue:kaoriya body:"abc\n" cmd:cat status:0
+2014/05/28 00:14:27 EXECUTED queue:kaoriya body:"def\n" cmd:cat status:0
+2014/05/28 00:14:54 EXECUTED queue:kaoriya body:"foo\nbar\n" cmd:cat status:0
+```
