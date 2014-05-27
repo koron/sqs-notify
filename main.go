@@ -67,14 +67,17 @@ func (a *app) log_ok(m *sqsnotify.SQSMessage, r WorkerResult) {
 	if a.logger == nil {
 		return
 	}
-	// TODO:
+	// Log as OK.
+	a.logger.Printf("EXECUTED queue:%s body:%#v cmd:%s status:%d",
+		a.notify.Name(), *m.Body(), a.cmd, r.Code)
 }
 
 func (a *app) log_ng(m *sqsnotify.SQSMessage, err error) {
 	if a.logger == nil {
 		return
 	}
-	// TODO:
+	a.logger.Printf("NOT_EXECUTED - queue:%s body:%#v error:%s",
+		a.notify.Name(), *m.Body(), err)
 }
 
 func (a *app) run() (err error) {

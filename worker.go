@@ -5,10 +5,12 @@ import (
 	"os/exec"
 	"os/signal"
 	"sync"
+	"syscall"
 )
 
 type WorkerResult struct {
 	Error        error
+	Code         int
 	ProcessState *os.ProcessState
 }
 
@@ -48,7 +50,11 @@ func (w *Workers) startWorker(num int, jobs chan WorkerJob) {
 		signal.Stop(sig)
 		close(sig)
 
-		res := WorkerResult{err, j.Cmd.ProcessState}
+		res := WorkerResult{
+			Code: getStatusCode(err),
+			Error: err,
+			ProcessState: j.Cmd.ProcessState,
+		}
 		if j.Finish != nil {
 			j.Finish(res)
 		}
@@ -63,4 +69,16 @@ func (w *Workers) Run(job WorkerJob) {
 
 func (w *Workers) Wait() {
 	w.wait.Wait()
+}
+
+// Get status code.  It works for Windows and UNIX.
+func getStatusCode(err error) int {
+	if err != nil {
+		if errexit, ok := err.(*exec.ExitError); ok {
+			if status, ok := errexit.Sys().(syscall.WaitStatus); ok {
+				return status.ExitStatus()
+			}
+		}
+	}
+	return 0
 }
