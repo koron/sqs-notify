@@ -6,6 +6,7 @@ as STDIN to the command.
 (in Japanese) SQS を監視しメッセージを取得したら指定のコマンドを実行します。
 メッセージの内容はコマンドの標準入力として渡します。
 
+
 ## Installation
 
 ```
@@ -26,6 +27,7 @@ Require git and bzr command for dependency.
 $ go get launchpad.net/goamz/aws
 $ go get github.com/Mistobaan/sqs
 ```
+
 
 ## Usage
 
@@ -80,7 +82,26 @@ Basic usage:
 *   `ap-northeast-1`
 *   `sp-east-1`
 
-## Limitations
+### Logging
+
+When `-logfile {FILE PATH}` is given, all messages which received are logged
+into the file.  If FILE PATH is `-`, it output all logs to STDOUT not file.
+
+Using `-pidfile {FILE PATH}` with `-logfile`, sqs-notify writes own PID to the
+file.  You can send SIGHUP to that PID to rotate log.
+
+Log example:
+
+```
+2014/05/28 00:13:29 EXECUTED queue:kaoriya body:"abc\n" cmd:cat status:0
+2014/05/28 00:14:27 EXECUTED queue:kaoriya body:"def\n" cmd:cat status:0
+2014/05/28 00:14:54 EXECUTED queue:kaoriya body:"foo\nbar\n" cmd:cat status:0
+```
+
+Each items in one log are separated by tab char (`\t`).
+
+
+## Miscellaneous
 
 ### LF at EOF
 
@@ -109,18 +130,14 @@ done
 )
 ```
 
-### Logging
+### /dev/stdin
 
-When `-logfile {FILE PATH}` is given, all messages which received are logged
-into the file.  If FILE PATH is `-`, it output all logs to STDOUT not file.
+You can use `/dev/stdin` pseudo file, if your system support it, like this:
 
-Using `-pidfile {FILE PATH}` with `-logfile`, sqs-notify writes own PID to the
-file.  You can send SIGHUP to that PID to rotate log.
+```sh
+#!/bin/sh
 
-Log example:
+data=`cat /dev/stdin`
 
-```
-2014/05/28 00:13:29 EXECUTED queue:kaoriya body:"abc\n" cmd:cat status:0
-2014/05/28 00:14:27 EXECUTED queue:kaoriya body:"def\n" cmd:cat status:0
-2014/05/28 00:14:54 EXECUTED queue:kaoriya body:"foo\nbar\n" cmd:cat status:0
+# do something for data.
 ```
