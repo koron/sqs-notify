@@ -65,21 +65,21 @@ func (a *app) log(v ...interface{}) {
 	a.logger.Print(v)
 }
 
-func (a *app) logOk(m *sqsnotify.SQSMessage, r workerResult) {
+func (a *app) logOk(m string, r workerResult) {
 	if a.logger == nil {
 		return
 	}
 	// Log as OK.
 	a.logger.Printf("\tEXECUTED\tqueue:%s\tbody:%#v\tcmd:%s\tstatus:%d",
-		a.notify.Name(), *m.Body(), a.cmd, r.Code)
+		a.notify.Name(), m, a.cmd, r.Code)
 }
 
-func (a *app) logNg(m *sqsnotify.SQSMessage, err error) {
+func (a *app) logNg(m string, err error) {
 	if a.logger == nil {
 		return
 	}
 	a.logger.Printf("\tNOT_EXECUTED\tqueue:%s\tbody:%#v\terror:%s",
-		a.notify.Name(), *m.Body(), err)
+		a.notify.Name(), m, err)
 }
 
 func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
@@ -121,7 +121,8 @@ func (a *app) run() (err error) {
 			retryCount = 0
 		}
 
-		if !a.msgCache.AddTry(*m.Body()) {
+		body := *m.Body()
+		if !a.msgCache.AddTry(body) {
 			continue
 		}
 
@@ -129,45 +130,45 @@ func (a *app) run() (err error) {
 		cmd := exec.Command(a.cmd, a.args...)
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
-			a.logNg(m, err)
-			a.msgCache.Delete(*m.Body())
+			a.logNg(body, err)
+			a.msgCache.Delete(body)
 			return err
 		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
-			a.logNg(m, err)
-			a.msgCache.Delete(*m.Body())
+			a.logNg(body, err)
+			a.msgCache.Delete(body)
 			return err
 		}
 		stderr, err := cmd.StderrPipe()
 		if err != nil {
-			a.logNg(m, err)
-			a.msgCache.Delete(*m.Body())
+			a.logNg(body, err)
+			a.msgCache.Delete(body)
 			return err
 		}
 
 		if a.nowait {
 			a.deleteSQSMessage(m)
 			w.Run(workerJob{cmd, func(r workerResult) {
-				a.logOk(m, r)
+				a.logOk(body, r)
 				if !r.Success() {
-					a.msgCache.Delete(*m.Body())
+					a.msgCache.Delete(body)
 				}
 			}})
 		} else {
 			w.Run(workerJob{cmd, func(r workerResult) {
-				a.logOk(m, r)
+				a.logOk(body, r)
 				if r.Success() {
 					a.deleteSQSMessage(m)
 				} else {
-					a.msgCache.Delete(*m.Body())
+					a.msgCache.Delete(body)
 				}
 			}})
 		}
 		go io.Copy(os.Stdout, stdout)
 		go io.Copy(os.Stderr, stderr)
 		go func() {
-			stdin.Write([]byte(*m.Body()))
+			stdin.Write([]byte(body))
 			stdin.Close()
 		}()
 	}
