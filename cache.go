@@ -10,6 +10,8 @@ import (
 type cache interface {
 	AddTry(s string) bool
 	Delete(s string)
+	Complete(s string)
+	IsComplete(s string) bool
 }
 
 func newCache(capacity int) cache {
@@ -73,4 +75,19 @@ func (c *digestCache) Delete(s string) {
 	// remove a key.
 	delete(c.table, k)
 	c.keys.Remove(e)
+}
+
+func (c *digestCache) Complete(s string) {
+	if c.capacity == 0 {
+		return
+	}
+	// TODO:
+}
+
+func (c *digestCache) IsComplete(s string) bool {
+	if c.capacity == 0 {
+		return false
+	}
+	// TODO:
+	return false
 }

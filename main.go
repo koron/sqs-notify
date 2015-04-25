@@ -123,6 +123,9 @@ func (a *app) run() (err error) {
 
 		body := *m.Body()
 		if !a.msgCache.AddTry(body) {
+			if a.msgCache.IsComplete(body) {
+				a.deleteSQSMessage(m)
+			}
 			continue
 		}
 
@@ -151,7 +154,9 @@ func (a *app) run() (err error) {
 			a.deleteSQSMessage(m)
 			w.Run(workerJob{cmd, func(r workerResult) {
 				a.logOk(body, r)
-				if !r.Success() {
+				if r.Success() {
+					a.msgCache.Complete(body)
+				} else {
 					a.msgCache.Delete(body)
 				}
 			}})
@@ -159,6 +164,7 @@ func (a *app) run() (err error) {
 			w.Run(workerJob{cmd, func(r workerResult) {
 				a.logOk(body, r)
 				if r.Success() {
+					a.msgCache.Complete(body)
 					a.deleteSQSMessage(m)
 				} else {
 					a.msgCache.Delete(body)
