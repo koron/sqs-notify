@@ -55,8 +55,8 @@ func (w *workers) startWorker(num int, jobs chan workerJob) {
 		close(sig)
 
 		res := workerResult{
-			Code: getStatusCode(err),
-			Error: err,
+			Code:         getStatusCode(err),
+			Error:        err,
 			ProcessState: j.Cmd.ProcessState,
 		}
 		if j.Finish != nil {

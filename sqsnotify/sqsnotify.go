@@ -7,6 +7,7 @@ import (
 
 const messageCount = 10
 
+// SQSNotify provides SQS message stream.
 type SQSNotify struct {
 	auth   aws.Auth
 	region aws.Region
@@ -15,16 +16,19 @@ type SQSNotify struct {
 	queue *sqs.Queue
 }
 
+// New creates and returns a SQSNotify instance.
 func New(auth aws.Auth, region aws.Region, name string) *SQSNotify {
 	return &SQSNotify{auth, region, name, nil}
 }
 
+// Open prepare internal resources.
 func (n *SQSNotify) Open() (err error) {
 	awsSQS := sqs.New(n.auth, n.region)
 	n.queue, err = awsSQS.GetQueue(n.name)
 	return
 }
 
+// Listen starts the stream.
 func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 	ch := make(chan *SQSMessage, messageCount)
 	go func() {
@@ -42,11 +46,12 @@ func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 	return ch, nil
 }
 
-// Get queue name.
+// Name returns queue name.
 func (n *SQSNotify) Name() string {
 	return n.name
 }
 
+// SQSMessage represent a SQS message.
 type SQSMessage struct {
 	Error   error
 	Message *sqs.Message
@@ -63,14 +68,15 @@ func newMessage(m *sqs.Message, q *sqs.Queue) *SQSMessage {
 	return &SQSMessage{nil, m, false, q}
 }
 
+// Body returns body of message.
 func (m *SQSMessage) Body() *string {
 	if m.Message == nil {
 		return nil
-	} else {
-		return &m.Message.Body
 	}
+	return &m.Message.Body
 }
 
+// Delete requests to delete message to SQS.
 func (m *SQSMessage) Delete() (err error) {
 	if m.deleted {
 		return nil
