@@ -130,16 +130,19 @@ func (a *app) run() (err error) {
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
 			a.logNg(m, err)
+			a.msgCache.Delete(*m.Body())
 			return err
 		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			a.logNg(m, err)
+			a.msgCache.Delete(*m.Body())
 			return err
 		}
 		stderr, err := cmd.StderrPipe()
 		if err != nil {
 			a.logNg(m, err)
+			a.msgCache.Delete(*m.Body())
 			return err
 		}
 
