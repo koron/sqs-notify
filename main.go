@@ -3,27 +3,28 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/koron/sqs-notify/sqsnotify"
 	"io"
-	"launchpad.net/goamz/aws"
 	"log"
 	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
 	"time"
+
+	"github.com/koron/sqs-notify/sqsnotify"
+	"launchpad.net/goamz/aws"
 )
 
 const progname = "sqs-notify"
 
 type app struct {
-	logger *log.Logger
-	auth   aws.Auth
-	region aws.Region
-	worker int
-	nowait bool
-	// retryMax is max count of retry.
+	logger   *log.Logger
+	auth     aws.Auth
+	region   aws.Region
+	worker   int
+	nowait   bool
 	retryMax int
+	msgCache cache
 	notify   *sqsnotify.SQSNotify
 	cmd      string
 	args     []string
@@ -37,6 +38,7 @@ OPTIONS:
   -worker {num} :       num of workers (default: 4)
   -nowait :             didn't wait end of command to delete message
   -retrymax {num} :     num of retry count (default: 4)
+  -msgcache {num} :     num of last received message in cache (default: 0)
   -logfile {path} :     log file path ("-" for stdout)
   -pidfile {path} :     pid file path (available with -logfile)
 
@@ -80,6 +82,11 @@ func (a *app) log_ng(m *sqsnotify.SQSMessage, err error) {
 		a.notify.Name(), *m.Body(), err)
 }
 
+func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
+	// FIXME: log it when failed to delete.
+	m.Delete()
+}
+
 func (a *app) run() (err error) {
 	// Open a queue.
 	err = a.notify.Open()
@@ -115,6 +122,10 @@ func (a *app) run() (err error) {
 			retryCount = 0
 		}
 
+		if !a.msgCache.AddTry(*m.Body()) {
+			continue
+		}
+
 		// Create and setup a exec.Cmd.
 		cmd := exec.Command(a.cmd, a.args...)
 		stdin, err := cmd.StdinPipe()
@@ -134,16 +145,21 @@ func (a *app) run() (err error) {
 		}
 
 		if a.nowait {
-			m.Delete() // FIXME: log it when failed to delete.
+			a.deleteSQSMessage(m)
 			w.Run(WorkerJob{cmd, func(r WorkerResult) {
 				a.log_ok(m, r)
+				if !r.Success() {
+					a.msgCache.Delete(*m.Body())
+				}
 			}})
 		} else {
 			w.Run(WorkerJob{cmd, func(r WorkerResult) {
-				if r.ProcessState != nil && r.ProcessState.Success() {
-					m.Delete() // FIXME: log it when failed to delete.
-				}
 				a.log_ok(m, r)
+				if r.Success() {
+					a.deleteSQSMessage(m)
+				} else {
+					a.msgCache.Delete(*m.Body())
+				}
 			}})
 		}
 		go io.Copy(os.Stdout, stdout)

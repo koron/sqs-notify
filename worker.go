@@ -14,6 +14,10 @@ type WorkerResult struct {
 	ProcessState *os.ProcessState
 }
 
+func (r *WorkerResult) Success() bool {
+	return r.ProcessState != nil && r.ProcessState.Success()
+}
+
 type WorkerJob struct {
 	Cmd    *exec.Cmd
 	Finish func(WorkerResult)
