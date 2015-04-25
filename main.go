@@ -65,7 +65,7 @@ func (a *app) log(v ...interface{}) {
 	a.logger.Print(v)
 }
 
-func (a *app) log_ok(m *sqsnotify.SQSMessage, r WorkerResult) {
+func (a *app) logOk(m *sqsnotify.SQSMessage, r workerResult) {
 	if a.logger == nil {
 		return
 	}
@@ -74,7 +74,7 @@ func (a *app) log_ok(m *sqsnotify.SQSMessage, r WorkerResult) {
 		a.notify.Name(), *m.Body(), a.cmd, r.Code)
 }
 
-func (a *app) log_ng(m *sqsnotify.SQSMessage, err error) {
+func (a *app) logNg(m *sqsnotify.SQSMessage, err error) {
 	if a.logger == nil {
 		return
 	}
@@ -100,7 +100,7 @@ func (a *app) run() (err error) {
 		return
 	}
 
-	w := NewWorkers(a.worker)
+	w := newWorkers(a.worker)
 
 	// Receive *sqsnotify.SQSMessage via channel.
 	retryCount := 0
@@ -110,14 +110,13 @@ func (a *app) run() (err error) {
 				a.log("abort:", m.Error)
 				log.Println("sqs-notify (abort):", m.Error)
 				return errors.New("Over retry: " + strconv.Itoa(retryCount))
-			} else {
-				a.log("retry:", m.Error)
-				log.Println("sqs-notify (retry):", m.Error)
-				retryCount += 1
-				// sleep before retry.
-				time.Sleep(retryDuration(retryCount))
-				continue
 			}
+			a.log("retry:", m.Error)
+			log.Println("sqs-notify (retry):", m.Error)
+			retryCount++
+			// sleep before retry.
+			time.Sleep(retryDuration(retryCount))
+			continue
 		} else {
 			retryCount = 0
 		}
@@ -130,31 +129,31 @@ func (a *app) run() (err error) {
 		cmd := exec.Command(a.cmd, a.args...)
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
-			a.log_ng(m, err)
+			a.logNg(m, err)
 			return err
 		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
-			a.log_ng(m, err)
+			a.logNg(m, err)
 			return err
 		}
 		stderr, err := cmd.StderrPipe()
 		if err != nil {
-			a.log_ng(m, err)
+			a.logNg(m, err)
 			return err
 		}
 
 		if a.nowait {
 			a.deleteSQSMessage(m)
-			w.Run(WorkerJob{cmd, func(r WorkerResult) {
-				a.log_ok(m, r)
+			w.Run(workerJob{cmd, func(r workerResult) {
+				a.logOk(m, r)
 				if !r.Success() {
 					a.msgCache.Delete(*m.Body())
 				}
 			}})
 		} else {
-			w.Run(WorkerJob{cmd, func(r WorkerResult) {
-				a.log_ok(m, r)
+			w.Run(workerJob{cmd, func(r workerResult) {
+				a.logOk(m, r)
 				if r.Success() {
 					a.deleteSQSMessage(m)
 				} else {
