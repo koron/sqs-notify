@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"io"
@@ -88,8 +89,8 @@ func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
 }
 
 func (a *app) digest(s string) string {
-	// TODO:
-	return ""
+	h := md5.New()
+	return fmt.Sprintf("%x", h.Sum([]byte(s)))
 }
 
 func (a *app) run() (err error) {
