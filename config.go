@@ -99,7 +99,7 @@ func (c *config) toApp() (*app, error) {
 		worker:   c.worker,
 		nowait:   c.nowait,
 		retryMax: c.retryMax,
-		msgCache: newCache(c.msgcache),
+		jobs:     newJobs(c.msgcache),
 		notify:   notify,
 		cmd:      c.cmd,
 		args:     c.args,

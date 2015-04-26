@@ -24,7 +24,7 @@ type app struct {
 	worker   int
 	nowait   bool
 	retryMax int
-	msgCache cache
+	jobs     jobs
 	notify   *sqsnotify.SQSNotify
 	cmd      string
 	args     []string
@@ -87,6 +87,11 @@ func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
 	m.Delete()
 }
 
+func (a *app) digest(s string) string {
+	// TODO:
+	return ""
+}
+
 func (a *app) run() (err error) {
 	// Open a queue.
 	err = a.notify.Open()
@@ -122,11 +127,12 @@ func (a *app) run() (err error) {
 		}
 
 		body := *m.Body()
-		if !a.msgCache.AddTry(body) {
-			if a.msgCache.IsComplete(body) {
-				a.deleteSQSMessage(m)
-			}
+		jid := a.digest(body)
+		switch a.jobs.StartTry(jid) {
+		case jobRunning:
 			continue
+		case jobCompleted:
+			a.deleteSQSMessage(m)
 		}
 
 		// Create and setup a exec.Cmd.
@@ -134,19 +140,19 @@ func (a *app) run() (err error) {
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
 			a.logNg(body, err)
-			a.msgCache.Delete(body)
+			a.jobs.Fail(jid)
 			return err
 		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			a.logNg(body, err)
-			a.msgCache.Delete(body)
+			a.jobs.Fail(jid)
 			return err
 		}
 		stderr, err := cmd.StderrPipe()
 		if err != nil {
 			a.logNg(body, err)
-			a.msgCache.Delete(body)
+			a.jobs.Fail(jid)
 			return err
 		}
 
@@ -155,19 +161,19 @@ func (a *app) run() (err error) {
 			w.Run(workerJob{cmd, func(r workerResult) {
 				a.logOk(body, r)
 				if r.Success() {
-					a.msgCache.Complete(body)
+					a.jobs.Complete(jid)
 				} else {
-					a.msgCache.Delete(body)
+					a.jobs.Fail(jid)
 				}
 			}})
 		} else {
 			w.Run(workerJob{cmd, func(r workerResult) {
 				a.logOk(body, r)
 				if r.Success() {
-					a.msgCache.Complete(body)
+					a.jobs.Complete(jid)
 					a.deleteSQSMessage(m)
 				} else {
-					a.msgCache.Delete(body)
+					a.jobs.Fail(jid)
 				}
 			}})
 		}
