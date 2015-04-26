@@ -22,7 +22,7 @@ type jobs interface {
 func newJobs(capacity int) jobs {
 	return &jobManager{
 		capacity: capacity,
-		table:    make(map[string]jobItem),
+		table:    make(map[string]*jobItem),
 		keys:     list.New(),
 	}
 }
@@ -35,7 +35,7 @@ type jobItem struct {
 type jobManager struct {
 	capacity int
 	lock     sync.Mutex
-	table    map[string]jobItem
+	table    map[string]*jobItem
 	keys     *list.List
 }
 
@@ -59,7 +59,7 @@ func (m *jobManager) StartTry(id string) jobState {
 	}
 	// add a key.
 	el := m.keys.PushBack(id)
-	m.table[id] = jobItem{
+	m.table[id] = &jobItem{
 		el:    el,
 		state: jobRunning,
 	}
@@ -72,7 +72,7 @@ func (m *jobManager) Fail(id string) {
 	}
 	// get lock for table.
 	m.lock.Lock()
-	defer m.lock.Lock()
+	defer m.lock.Unlock()
 	// search cached key.
 	s, ok := m.table[id]
 	if !ok {
@@ -89,7 +89,7 @@ func (m *jobManager) Complete(id string) {
 	}
 	// get lock for table.
 	m.lock.Lock()
-	defer m.lock.Lock()
+	defer m.lock.Unlock()
 	// search cached key.
 	s, ok := m.table[id]
 	if !ok {
