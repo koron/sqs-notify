@@ -134,6 +134,7 @@ func (a *app) run() (err error) {
 			continue
 		case jobCompleted:
 			a.deleteSQSMessage(m)
+			continue
 		}
 
 		// Create and setup a exec.Cmd.
