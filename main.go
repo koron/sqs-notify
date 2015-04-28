@@ -75,6 +75,14 @@ func (a *app) logOk(m string, r workerResult) {
 		a.notify.Name(), m, a.cmd, r.Code)
 }
 
+func (a *app) logSkip(m string) {
+	if a.logger == nil {
+		return
+	}
+	// Log as SKIP.
+	a.logger.Printf("\tSKIPPED\tqueue:%s\tbody:%#v\t", a.notify.Name(), m)
+}
+
 func (a *app) logNg(m string, err error) {
 	if a.logger == nil {
 		return
@@ -131,6 +139,7 @@ func (a *app) run() (err error) {
 		jid := a.digest(body)
 		switch a.jobs.StartTry(jid) {
 		case jobRunning:
+			a.logSkip(body)
 			continue
 		case jobCompleted:
 			a.deleteSQSMessage(m)
