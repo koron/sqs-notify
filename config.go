@@ -3,11 +3,12 @@ package main
 import (
 	"errors"
 	"flag"
+	"log"
+	"os"
+
 	"github.com/koron/hupwriter"
 	"github.com/koron/sqs-notify/sqsnotify"
 	"launchpad.net/goamz/aws"
-	"log"
-	"os"
 )
 
 type config struct {
@@ -15,6 +16,7 @@ type config struct {
 	worker   int
 	nowait   bool
 	retryMax int
+	msgcache int
 	logfile  string
 	pidfile  string
 	queue    string
@@ -27,6 +29,7 @@ func getConfig() (*config, error) {
 	var worker int
 	var nowait bool
 	var retryMax int
+	var msgcache int
 	var logfile string
 	var pidfile string
 
@@ -34,6 +37,7 @@ func getConfig() (*config, error) {
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
 	flag.BoolVar(&nowait, "nowait", false, "Didn't wait end of command")
 	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
+	flag.IntVar(&msgcache, "msgcache", 0, "Num of last messages in cache")
 	flag.StringVar(&logfile, "logfile", "", "Log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
 	flag.Parse()
@@ -53,6 +57,7 @@ func getConfig() (*config, error) {
 		worker:   worker,
 		nowait:   nowait,
 		retryMax: retryMax,
+		msgcache: msgcache,
 		logfile:  logfile,
 		pidfile:  pidfile,
 		queue:    args[0],
@@ -88,12 +93,13 @@ func (c *config) toApp() (*app, error) {
 	notify := sqsnotify.New(auth, region, c.queue)
 
 	return &app{
-		logger:	  l,
+		logger:   l,
 		auth:     auth,
 		region:   region,
 		worker:   c.worker,
 		nowait:   c.nowait,
 		retryMax: c.retryMax,
+		jobs:     newJobs(c.msgcache),
 		notify:   notify,
 		cmd:      c.cmd,
 		args:     c.args,

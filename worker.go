@@ -8,26 +8,30 @@ import (
 	"syscall"
 )
 
-type WorkerResult struct {
+type workerResult struct {
 	Error        error
 	Code         int
 	ProcessState *os.ProcessState
 }
 
-type WorkerJob struct {
-	Cmd    *exec.Cmd
-	Finish func(WorkerResult)
+func (r *workerResult) Success() bool {
+	return r.ProcessState != nil && r.ProcessState.Success()
 }
 
-type Workers struct {
+type workerJob struct {
+	Cmd    *exec.Cmd
+	Finish func(workerResult)
+}
+
+type workers struct {
 	num  int
-	jobs chan WorkerJob
+	jobs chan workerJob
 	wait *sync.WaitGroup
 }
 
-func NewWorkers(num int) *Workers {
-	jobs := make(chan WorkerJob, 100)
-	w := &Workers{num, jobs, &sync.WaitGroup{}}
+func newWorkers(num int) *workers {
+	jobs := make(chan workerJob, 100)
+	w := &workers{num, jobs, &sync.WaitGroup{}}
 
 	for i := 0; i < num; i++ {
 		go w.startWorker(i, jobs)
@@ -35,7 +39,7 @@ func NewWorkers(num int) *Workers {
 	return w
 }
 
-func (w *Workers) startWorker(num int, jobs chan WorkerJob) {
+func (w *workers) startWorker(num int, jobs chan workerJob) {
 	for j := range jobs {
 		sig := make(chan os.Signal, 1)
 		go func() {
@@ -50,9 +54,9 @@ func (w *Workers) startWorker(num int, jobs chan WorkerJob) {
 		signal.Stop(sig)
 		close(sig)
 
-		res := WorkerResult{
-			Code: getStatusCode(err),
-			Error: err,
+		res := workerResult{
+			Code:         getStatusCode(err),
+			Error:        err,
 			ProcessState: j.Cmd.ProcessState,
 		}
 		if j.Finish != nil {
@@ -62,12 +66,12 @@ func (w *Workers) startWorker(num int, jobs chan WorkerJob) {
 	}
 }
 
-func (w *Workers) Run(job WorkerJob) {
+func (w *workers) Run(job workerJob) {
 	w.wait.Add(1)
 	w.jobs <- job
 }
 
-func (w *Workers) Wait() {
+func (w *workers) Wait() {
 	w.wait.Wait()
 }
 
