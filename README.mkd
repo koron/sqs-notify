@@ -19,13 +19,12 @@ or update
 $ go get -u github.com/koron/sqs-notify
 ```
 
-Require git and bzr command for dependency.
+Require git command for dependencies.
 
 ### for developer
 
 ```
-$ go get launchpad.net/goamz/aws
-$ go get github.com/Mistobaan/sqs
+$ go get github.com/goamz/goamz
 ```
 
 

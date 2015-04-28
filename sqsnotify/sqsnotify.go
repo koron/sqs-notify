@@ -1,8 +1,8 @@
 package sqsnotify
 
 import (
-	"github.com/Mistobaan/sqs"
-	"launchpad.net/goamz/aws"
+	"github.com/goamz/goamz/aws"
+	"github.com/goamz/goamz/sqs"
 )
 
 const messageCount = 10

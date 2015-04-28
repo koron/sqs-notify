@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/goamz/goamz/aws"
 	"github.com/koron/hupwriter"
 	"github.com/koron/sqs-notify/sqsnotify"
-	"launchpad.net/goamz/aws"
 )
 
 type config struct {

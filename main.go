@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/goamz/goamz/aws"
 	"github.com/koron/sqs-notify/sqsnotify"
-	"launchpad.net/goamz/aws"
 )
 
 const progname = "sqs-notify"
