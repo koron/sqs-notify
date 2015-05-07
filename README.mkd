@@ -141,3 +141,36 @@ data=`cat /dev/stdin`
 
 # do something for data.
 ```
+
+### sqs-echo
+
+sqs-echo is useful for debugging received SQS message with sqs-notify.  It just
+shows date, time, byte num and contents of received messages.  Example output
+is below:
+
+```
+2015/05/07 12:43:08 (7) "foo\nbar"
+2015/05/07 12:43:12 (3) "qux"
+```
+
+You can install sqs-echo with below command.
+
+```
+$ go install github.com/koron/sqs-notify/cmd/sqs-echo
+```
+
+### Suppress for duplicated message
+
+To suppress executions of the command for duplicated (seen recently) messages,
+please use `-msgcache {num}` option.  `{num}` means cache size for messages.
+
+Below command shows how to enable suppression with cache size 10.
+
+    $ sqs-notify -msgcache 10 -logfile - my-queue sqs-echo
+
+You'll get log like this when sqs-notify detect duplicated message.
+
+```
+2015/05/07 12:13:08 EXECUTED queue:my-queue body:"foo\n" cmd:cat status:0
+2015/05/07 12:43:11 SKIPPED  queue:my-queue body:"foo\n"
+```

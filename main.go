@@ -142,6 +142,7 @@ func (a *app) run() (err error) {
 			a.logSkip(body)
 			continue
 		case jobCompleted:
+			a.logSkip(body)
 			a.deleteSQSMessage(m)
 			continue
 		}
