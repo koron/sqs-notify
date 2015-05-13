@@ -174,3 +174,5 @@ You'll get log like this when sqs-notify detect duplicated message.
 2015/05/07 12:13:08 EXECUTED queue:my-queue body:"foo\n" cmd:cat status:0
 2015/05/07 12:43:11 SKIPPED  queue:my-queue body:"foo\n"
 ```
+
+sqs-notify stores hashs (MD5) of message to detect duplication.
