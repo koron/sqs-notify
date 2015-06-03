@@ -93,6 +93,8 @@ func (c *config) toApp() (*app, error) {
 
 	notify := sqsnotify.New(auth, region, c.queue)
 
+	jobs := newJobs(c.msgcache)
+
 	return &app{
 		logger:   l,
 		auth:     auth,
@@ -100,7 +102,7 @@ func (c *config) toApp() (*app, error) {
 		worker:   c.worker,
 		nowait:   c.nowait,
 		retryMax: c.retryMax,
-		jobs:     newJobs(c.msgcache),
+		jobs:     jobs,
 		notify:   notify,
 		cmd:      c.cmd,
 		args:     c.args,
