@@ -8,6 +8,7 @@ import (
 
 	"github.com/goamz/goamz/aws"
 	"github.com/koron/hupwriter"
+	"github.com/koron/sqs-notify/awsutil"
 	"github.com/koron/sqs-notify/sqsnotify"
 )
 
@@ -68,7 +69,7 @@ func getConfig() (*config, error) {
 
 func (c *config) toApp() (*app, error) {
 	// Retrieve an AWS auth.
-	auth, err := aws.EnvAuth()
+	auth, err := awsutil.GetAuth("sqs-notify")
 	if err != nil {
 		return nil, err
 	}
