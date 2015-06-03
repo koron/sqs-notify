@@ -17,6 +17,7 @@ type jobs interface {
 	StartTry(id string) jobState
 	Fail(id string)
 	Complete(id string)
+	Close()
 }
 
 func newJobs(capacity int) jobs {
@@ -97,4 +98,8 @@ func (m *jobManager) Complete(id string) {
 	}
 	// remove a key.
 	s.state = jobCompleted
+}
+
+func (m *jobManager) Close() {
+	// nothing to do.
 }

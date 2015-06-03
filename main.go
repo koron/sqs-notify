@@ -210,6 +210,9 @@ func main() {
 	if err != nil {
 		log.Fatalln("sqs-notify:", err)
 	}
+	if a.jobs != nil {
+		defer a.jobs.Close()
+	}
 
 	err = a.run()
 	if err != nil {

@@ -12,6 +12,8 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify"
 )
 
+// TODO: add redis option
+
 type config struct {
 	region   string
 	worker   int
@@ -93,6 +95,7 @@ func (c *config) toApp() (*app, error) {
 
 	notify := sqsnotify.New(auth, region, c.queue)
 
+	// TODO: support redis jobs manager.
 	jobs := newJobs(c.msgcache)
 
 	return &app{
