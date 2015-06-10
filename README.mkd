@@ -41,6 +41,7 @@ OPTIONS:
   -nowait :             didn't wait end of command to delete message
   -retrymax {num} :     num of retry count (default: 4)
   -msgcache {num} :     num of last received messages in cache (default: 0)
+  -redis {path} :       use redis as message cache (default: disabled)
   -logfile {path} :     log file path ("-" for stdout)
   -pidfile {path} :     pid file path (available with -logfile)
 
@@ -188,3 +189,25 @@ You'll get log like this when sqs-notify detect duplicated message.
 ```
 
 sqs-notify stores hashs (MD5) of message to detect duplication.
+
+#### Use redis to suppress duplicated messages
+
+sqs-notify では `-redis` オプションに設定ファイル(JSON)を指定すると、メッセージ
+ハッシュの保存先をRedisに変更できます。
+
+実行例:
+
+    $ sqs-notify -redis redis-example.json -logfile - my-queue sqs-echo
+
+JSON内で使用できる設定項目は以下のとおりです。
+
+Name       |Mandatory?  |Description
+-----------|------------|------------
+addr       |YES         |"host:port" address
+keyPrefix  |YES         |prefix of keys
+expiration |YES         |time to expiration for keys (acceptable [format](http://golang.org/pkg/time/#ParseDuration))
+network    |NO          |"tcp" or "udp" (default "tcp")
+password   |NO          |password to connect redis
+maxRetries |NO          |default: no retry
+
+[redis-example.json](./redis-example.json) には最小限の設定が記載されています。

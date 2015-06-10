@@ -40,6 +40,7 @@ OPTIONS:
   -nowait :             didn't wait end of command to delete message
   -retrymax {num} :     num of retry count (default: 4)
   -msgcache {num} :     num of last received message in cache (default: 0)
+  -redis {path} :       use redis as message cache (default: disabled)
   -logfile {path} :     log file path ("-" for stdout)
   -pidfile {path} :     pid file path (available with -logfile)
 

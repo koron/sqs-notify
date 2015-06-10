@@ -8,10 +8,36 @@ import (
 type jobState int
 
 const (
-	jobStarted jobState = iota
+	jobStarted jobState = iota + 1
 	jobRunning
 	jobCompleted
 )
+
+func (s jobState) String() string {
+	switch s {
+	case jobStarted:
+		return "started"
+	case jobRunning:
+		return "running"
+	case jobCompleted:
+		return "completed"
+	default:
+		return ""
+	}
+}
+
+func parseJobState(s string) (jobState, bool) {
+	switch s {
+	case "started":
+		return jobStarted, true
+	case "running":
+		return jobRunning, true
+	case "completed":
+		return jobCompleted, true
+	default:
+		return 0, false
+	}
+}
 
 type jobs interface {
 	StartTry(id string) jobState
@@ -20,12 +46,12 @@ type jobs interface {
 	Close()
 }
 
-func newJobs(capacity int) jobs {
+func newJobs(capacity int) (jobs, error) {
 	return &jobManager{
 		capacity: capacity,
 		table:    make(map[string]*jobItem),
 		keys:     list.New(),
-	}
+	}, nil
 }
 
 type jobItem struct {
