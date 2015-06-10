@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -18,6 +20,7 @@ type config struct {
 	nowait   bool
 	retryMax int
 	msgcache int
+	redis    string
 	logfile  string
 	pidfile  string
 	queue    string
@@ -31,6 +34,7 @@ func getConfig() (*config, error) {
 	var nowait bool
 	var retryMax int
 	var msgcache int
+	var redis string
 	var logfile string
 	var pidfile string
 
@@ -39,6 +43,7 @@ func getConfig() (*config, error) {
 	flag.BoolVar(&nowait, "nowait", false, "Didn't wait end of command")
 	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
 	flag.IntVar(&msgcache, "msgcache", 0, "Num of last messages in cache")
+	flag.StringVar(&redis, "redis", "", "Use redis as messages cache")
 	flag.StringVar(&logfile, "logfile", "", "Log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
 	flag.Parse()
@@ -59,6 +64,7 @@ func getConfig() (*config, error) {
 		nowait:   nowait,
 		retryMax: retryMax,
 		msgcache: msgcache,
+		redis:    redis,
 		logfile:  logfile,
 		pidfile:  pidfile,
 		queue:    args[0],
@@ -93,6 +99,11 @@ func (c *config) toApp() (*app, error) {
 
 	notify := sqsnotify.New(auth, region, c.queue)
 
+	jobs, err := c.newJobs()
+	if err != nil {
+		return nil, err
+	}
+
 	return &app{
 		logger:   l,
 		auth:     auth,
@@ -100,9 +111,28 @@ func (c *config) toApp() (*app, error) {
 		worker:   c.worker,
 		nowait:   c.nowait,
 		retryMax: c.retryMax,
-		jobs:     newJobs(c.msgcache),
+		jobs:     jobs,
 		notify:   notify,
 		cmd:      c.cmd,
 		args:     c.args,
 	}, nil
+}
+
+func (c *config) newJobs() (jobs, error) {
+	if c.redis != "" {
+		return loadRedisJobs(c.redis)
+	}
+	return newJobs(c.msgcache)
+}
+
+func loadRedisJobs(path string) (jobs, error) {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var opt redisJobsOptions
+	if err := json.Unmarshal(b, &opt); err != nil {
+		return nil, err
+	}
+	return newRedisJobs(opt)
 }

@@ -17,7 +17,10 @@ func jobAssertNotStart(t *testing.T, j jobs, id string, n int) {
 }
 
 func TestJobs(t *testing.T) {
-	j := newJobs(5)
+	j, err := newJobs(5)
+	if err != nil {
+		t.Fatalf("newJobs must not return error: %s", err)
+	}
 	if j == nil {
 		t.Fatal("newJobs must not return nil")
 	}
