@@ -39,6 +39,7 @@ OPTIONS:
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
   -nowait :             didn't wait end of command to delete message
+  -ignorefailure:       don't care command results, treat it as success always
   -retrymax {num} :     num of retry count (default: 4)
   -msgcache {num} :     num of last received messages in cache (default: 0)
   -redis {path} :       use redis as message cache (default: disabled)

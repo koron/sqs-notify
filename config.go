@@ -15,23 +15,25 @@ import (
 )
 
 type config struct {
-	region   string
-	worker   int
-	nowait   bool
-	retryMax int
-	msgcache int
-	redis    string
-	logfile  string
-	pidfile  string
-	queue    string
-	cmd      string
-	args     []string
+	region        string
+	worker        int
+	nowait        bool
+	ignoreFailure bool
+	retryMax      int
+	msgcache      int
+	redis         string
+	logfile       string
+	pidfile       string
+	queue         string
+	cmd           string
+	args          []string
 }
 
 func getConfig() (*config, error) {
 	var region string
 	var worker int
 	var nowait bool
+	var ignoreFailure bool
 	var retryMax int
 	var msgcache int
 	var redis string
@@ -40,7 +42,8 @@ func getConfig() (*config, error) {
 
 	flag.StringVar(&region, "region", "us-east-1", "AWS Region for queue")
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
-	flag.BoolVar(&nowait, "nowait", false, "Didn't wait end of command")
+	flag.BoolVar(&nowait, "nowait", false, "Don't wait end of command")
+	flag.BoolVar(&ignoreFailure, "ignorefailure", false, "Don't care command failures")
 	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
 	flag.IntVar(&msgcache, "msgcache", 0, "Num of last messages in cache")
 	flag.StringVar(&redis, "redis", "", "Use redis as messages cache")
@@ -59,17 +62,18 @@ func getConfig() (*config, error) {
 	}
 
 	return &config{
-		region:   region,
-		worker:   worker,
-		nowait:   nowait,
-		retryMax: retryMax,
-		msgcache: msgcache,
-		redis:    redis,
-		logfile:  logfile,
-		pidfile:  pidfile,
-		queue:    args[0],
-		cmd:      args[1],
-		args:     args[2:],
+		region:        region,
+		worker:        worker,
+		nowait:        nowait,
+		ignoreFailure: ignoreFailure,
+		retryMax:      retryMax,
+		msgcache:      msgcache,
+		redis:         redis,
+		logfile:       logfile,
+		pidfile:       pidfile,
+		queue:         args[0],
+		cmd:           args[1],
+		args:          args[2:],
 	}, nil
 }
 
