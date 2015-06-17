@@ -19,16 +19,17 @@ import (
 const progname = "sqs-notify"
 
 type app struct {
-	logger   *log.Logger
-	auth     aws.Auth
-	region   aws.Region
-	worker   int
-	nowait   bool
-	retryMax int
-	jobs     jobs
-	notify   *sqsnotify.SQSNotify
-	cmd      string
-	args     []string
+	logger        *log.Logger
+	auth          aws.Auth
+	region        aws.Region
+	worker        int
+	nowait        bool
+	ignoreFailure bool
+	retryMax      int
+	jobs          jobs
+	notify        *sqsnotify.SQSNotify
+	cmd           string
+	args          []string
 }
 
 func usage() {
@@ -37,16 +38,17 @@ func usage() {
 OPTIONS:
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
-  -nowait :             didn't wait end of command to delete message
+  -nowait :             don't wait end of command to delete message
+  -ignorefailure:       don't care command results, treat it as success always
   -retrymax {num} :     num of retry count (default: 4)
   -msgcache {num} :     num of last received message in cache (default: 0)
   -redis {path} :       use redis as message cache (default: disabled)
   -logfile {path} :     log file path ("-" for stdout)
   -pidfile {path} :     pid file path (available with -logfile)
 
-Environment variables:
-  AWS_ACCESS_KEY_ID
-  AWS_SECRET_ACCESS_KEY
+  -mode {mode} :        pre-defined set of options for specific usecases
+
+Source: https://github.com/koron/sqs-notify
 `, progname)
 	os.Exit(1)
 }
@@ -173,7 +175,7 @@ func (a *app) run() (err error) {
 			a.deleteSQSMessage(m)
 			w.Run(workerJob{cmd, func(r workerResult) {
 				a.logOk(body, r)
-				if r.Success() {
+				if r.Success() || a.ignoreFailure {
 					a.jobs.Complete(jid)
 				} else {
 					a.jobs.Fail(jid)
@@ -182,7 +184,7 @@ func (a *app) run() (err error) {
 		} else {
 			w.Run(workerJob{cmd, func(r workerResult) {
 				a.logOk(body, r)
-				if r.Success() {
+				if r.Success() || a.ignoreFailure {
 					a.jobs.Complete(jid)
 					a.deleteSQSMessage(m)
 				} else {
@@ -190,6 +192,7 @@ func (a *app) run() (err error) {
 				}
 			}})
 		}
+
 		go io.Copy(os.Stdout, stdout)
 		go io.Copy(os.Stderr, stderr)
 		go func() {

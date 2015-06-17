@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/goamz/goamz/aws"
 	"github.com/koron/hupwriter"
@@ -14,38 +15,49 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify"
 )
 
+const (
+	modeAtMostOnce = "at-most-once"
+)
+
 type config struct {
-	region   string
-	worker   int
-	nowait   bool
-	retryMax int
-	msgcache int
-	redis    string
-	logfile  string
-	pidfile  string
-	queue    string
-	cmd      string
-	args     []string
+	region        string
+	worker        int
+	nowait        bool
+	ignoreFailure bool
+	retryMax      int
+	msgcache      int
+	redis         string
+	logfile       string
+	pidfile       string
+	queue         string
+	cmd           string
+	args          []string
 }
 
 func getConfig() (*config, error) {
-	var region string
-	var worker int
-	var nowait bool
-	var retryMax int
-	var msgcache int
-	var redis string
-	var logfile string
-	var pidfile string
+	var (
+		region        string
+		worker        int
+		nowait        bool
+		ignoreFailure bool
+		retryMax      int
+		msgcache      int
+		redis         string
+		logfile       string
+		pidfile       string
+		mode          string
+	)
 
 	flag.StringVar(&region, "region", "us-east-1", "AWS Region for queue")
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
-	flag.BoolVar(&nowait, "nowait", false, "Didn't wait end of command")
+	flag.BoolVar(&nowait, "nowait", false, "Don't wait end of command")
+	flag.BoolVar(&ignoreFailure, "ignorefailure", false, "Don't care command failures")
 	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
 	flag.IntVar(&msgcache, "msgcache", 0, "Num of last messages in cache")
 	flag.StringVar(&redis, "redis", "", "Use redis as messages cache")
 	flag.StringVar(&logfile, "logfile", "", "Log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
+	flag.StringVar(&mode, "mode", "", "pre-defined set of options for specific usecases")
 	flag.Parse()
 
 	// Parse arguments.
@@ -54,22 +66,37 @@ func getConfig() (*config, error) {
 		usage()
 	}
 
+	// Check consistencies of options
 	if len(pidfile) > 0 && len(logfile) == 0 {
 		return nil, errors.New("`-pidfile' requires `-logfile' option")
 	}
 
+	// Apply modes.
+	switch strings.ToLower(mode) {
+	case modeAtMostOnce:
+		if nowait {
+			return nil, errors.New("`-nowait' conflicts with at-most-once")
+		}
+		if msgcache == 0 && redis == "" {
+			return nil, errors.New("`-msgcache' or `-redis' is required for at-most-once")
+		}
+		nowait = false
+		ignoreFailure = true
+	}
+
 	return &config{
-		region:   region,
-		worker:   worker,
-		nowait:   nowait,
-		retryMax: retryMax,
-		msgcache: msgcache,
-		redis:    redis,
-		logfile:  logfile,
-		pidfile:  pidfile,
-		queue:    args[0],
-		cmd:      args[1],
-		args:     args[2:],
+		region:        region,
+		worker:        worker,
+		nowait:        nowait,
+		ignoreFailure: ignoreFailure,
+		retryMax:      retryMax,
+		msgcache:      msgcache,
+		redis:         redis,
+		logfile:       logfile,
+		pidfile:       pidfile,
+		queue:         args[0],
+		cmd:           args[1],
+		args:          args[2:],
 	}, nil
 }
 
