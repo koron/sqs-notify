@@ -212,3 +212,12 @@ password   |NO          |password to connect redis
 maxRetries |NO          |default: no retry
 
 [redis-example.json](./redis-example.json) には最小限の設定が記載されています。
+
+### at-most-once mode
+
+**at-most-once** mode provides at-most-once command execution.
+
+    $ sqs-notify -mode at-most-once -msgcache 10 my-queue sqs-echo
+
+This mode implies `-ignorefailure` option, excludes `-nowait` option, and
+requires one of `-msgcache` or `-redis` option.
