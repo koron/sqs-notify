@@ -35,17 +35,17 @@ type config struct {
 }
 
 func getConfig() (*config, error) {
-	var region string
-	var worker int
-	var nowait bool
-	var ignoreFailure bool
-	var retryMax int
-	var msgcache int
-	var redis string
-	var logfile string
-	var pidfile string
 	var (
-		mode string
+		region        string
+		worker        int
+		nowait        bool
+		ignoreFailure bool
+		retryMax      int
+		msgcache      int
+		redis         string
+		logfile       string
+		pidfile       string
+		mode          string
 	)
 
 	flag.StringVar(&region, "region", "us-east-1", "AWS Region for queue")
@@ -57,7 +57,7 @@ func getConfig() (*config, error) {
 	flag.StringVar(&redis, "redis", "", "Use redis as messages cache")
 	flag.StringVar(&logfile, "logfile", "", "Log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
-	flag.StringVar(&mode, "mode", "", "pre-defined options by usecases")
+	flag.StringVar(&mode, "mode", "", "pre-defined set of options for specific usecases")
 	flag.Parse()
 
 	// Parse arguments.

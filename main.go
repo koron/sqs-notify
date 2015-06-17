@@ -46,9 +46,9 @@ OPTIONS:
   -logfile {path} :     log file path ("-" for stdout)
   -pidfile {path} :     pid file path (available with -logfile)
 
-Environment variables:
-  AWS_ACCESS_KEY_ID
-  AWS_SECRET_ACCESS_KEY
+  -mode {mode} :        pre-defined set of options for specific usecases
+
+Source: https://github.com/koron/sqs-notify
 `, progname)
 	os.Exit(1)
 }
