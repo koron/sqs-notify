@@ -100,8 +100,7 @@ func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
 }
 
 func (a *app) digest(s string) string {
-	h := md5.New()
-	return fmt.Sprintf("%x", h.Sum([]byte(s)))
+	return fmt.Sprintf("%x", md5.Sum([]byte(s)))
 }
 
 func (a *app) run() (err error) {
