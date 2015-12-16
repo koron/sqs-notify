@@ -120,15 +120,17 @@ func (a *app) run() (err error) {
 	// accept CTRL+C to terminate.
 	sig := make(chan os.Signal, 1)
 	go func() {
+	loop:
 		for {
 			switch <-sig {
 			case os.Interrupt:
 				a.notify.Stop()
-				break
+				break loop
 			}
 		}
 		signal.Stop(sig)
 		close(sig)
+		close(c)
 	}()
 	signal.Notify(sig, os.Interrupt)
 
