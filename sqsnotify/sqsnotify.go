@@ -5,7 +5,7 @@ import (
 	"github.com/goamz/goamz/sqs"
 )
 
-const messageCount = 10
+const messageCount = 1
 
 // SQSNotify provides SQS message stream.
 type SQSNotify struct {
@@ -14,11 +14,19 @@ type SQSNotify struct {
 	name   string
 
 	queue *sqs.Queue
+
+	running bool
 }
 
 // New creates and returns a SQSNotify instance.
 func New(auth aws.Auth, region aws.Region, name string) *SQSNotify {
-	return &SQSNotify{auth, region, name, nil}
+	return &SQSNotify{
+		auth:    auth,
+		region:  region,
+		name:    name,
+		queue:   nil,
+		running: false,
+	}
 }
 
 // Open prepare internal resources.
@@ -32,7 +40,9 @@ func (n *SQSNotify) Open() (err error) {
 func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 	ch := make(chan *SQSMessage, messageCount)
 	go func() {
-		for {
+		n.running = true
+	loop:
+		for n.running {
 			resp, err := n.queue.ReceiveMessage(messageCount)
 			if err != nil {
 				ch <- newErrorMessage(err)
@@ -40,8 +50,12 @@ func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 			}
 			for _, m := range resp.Messages {
 				ch <- newMessage(&m, n.queue)
+				if !n.running {
+					break loop
+				}
 			}
 		}
+		close(ch)
 	}()
 	return ch, nil
 }
@@ -49,6 +63,11 @@ func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 // Name returns queue name.
 func (n *SQSNotify) Name() string {
 	return n.name
+}
+
+// Stop terminates listen loop.
+func (n *SQSNotify) Stop() {
+	n.running = false
 }
 
 // SQSMessage represent a SQS message.

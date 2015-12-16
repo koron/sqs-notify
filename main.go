@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"time"
 
@@ -115,6 +116,23 @@ func (a *app) run() (err error) {
 	if err != nil {
 		return
 	}
+
+	// accept CTRL+C to terminate.
+	sig := make(chan os.Signal, 1)
+	go func() {
+	loop:
+		for {
+			switch <-sig {
+			case os.Interrupt:
+				a.notify.Stop()
+				break loop
+			}
+		}
+		signal.Stop(sig)
+		close(sig)
+		close(c)
+	}()
+	signal.Notify(sig, os.Interrupt)
 
 	w := newWorkers(a.worker)
 
