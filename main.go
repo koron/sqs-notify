@@ -230,7 +230,7 @@ func main() {
 	}
 
 	if c.daemon {
-		d.MakeDaemon()
+		godaemon.MakeDaemon(&godaemon.DaemonAttr{})
 	}
 
 	a, err := c.toApp()
