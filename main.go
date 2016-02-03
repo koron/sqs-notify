@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/VividCortex/godaemon"
 	"github.com/goamz/goamz/aws"
 	"github.com/koron/sqs-notify/sqsnotify"
 )
@@ -37,6 +38,7 @@ func usage() {
 	fmt.Printf(`Usage: %s [OPTIONS] {queue name} {command and args...}
 
 OPTIONS:
+  -daemon :             run as a daemon
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
   -nowait :             don't wait end of command to delete message
@@ -225,6 +227,10 @@ func main() {
 	c, err := getConfig()
 	if err != nil {
 		log.Fatalln("sqs-notify:", err)
+	}
+
+	if c.daemon {
+		d.MakeDaemon()
 	}
 
 	a, err := c.toApp()
