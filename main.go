@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/VividCortex/godaemon"
 	"github.com/goamz/goamz/aws"
 	"github.com/koron/sqs-notify/sqsnotify"
 )
@@ -230,7 +229,7 @@ func main() {
 	}
 
 	if c.daemon {
-		godaemon.MakeDaemon(&godaemon.DaemonAttr{})
+		makeDaemon()
 	}
 
 	a, err := c.toApp()
