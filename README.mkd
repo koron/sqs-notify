@@ -222,3 +222,7 @@ maxRetries |NO          |default: no retry
 
 This mode implies `-ignorefailure` option, excludes `-nowait` option, and
 requires one of `-msgcache` or `-redis` option.
+
+## LICENSE
+
+MIT License.  See [LICENSE](./LICENSE) for details.
