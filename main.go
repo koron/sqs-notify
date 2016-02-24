@@ -31,6 +31,8 @@ type app struct {
 	notify        *sqsnotify.SQSNotify
 	cmd           string
 	args          []string
+
+	w *workers
 }
 
 func usage() {
@@ -135,7 +137,7 @@ func (a *app) run() (err error) {
 	}()
 	signal.Notify(sig, os.Interrupt)
 
-	w := newWorkers(a.worker)
+	a.w = newWorkers(a.worker)
 
 	// Receive *sqsnotify.SQSMessage via channel.
 	retryCount := 0
@@ -169,57 +171,64 @@ func (a *app) run() (err error) {
 		}
 
 		// Create and setup a exec.Cmd.
-		cmd := exec.Command(a.cmd, a.args...)
-		stdin, err := cmd.StdinPipe()
-		if err != nil {
-			a.logNg(body, err)
-			a.jobs.Fail(jid)
-			return err
-		}
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			a.logNg(body, err)
-			a.jobs.Fail(jid)
-			return err
-		}
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			a.logNg(body, err)
-			a.jobs.Fail(jid)
-			return err
-		}
-
-		if a.nowait {
-			a.deleteSQSMessage(m)
-			w.Run(workerJob{cmd, func(r workerResult) {
-				a.logOk(body, r)
-				if r.Success() || a.ignoreFailure {
-					a.jobs.Complete(jid)
-				} else {
-					a.jobs.Fail(jid)
-				}
-			}})
-		} else {
-			w.Run(workerJob{cmd, func(r workerResult) {
-				a.logOk(body, r)
-				if r.Success() || a.ignoreFailure {
-					a.jobs.Complete(jid)
-					a.deleteSQSMessage(m)
-				} else {
-					a.jobs.Fail(jid)
-				}
-			}})
-		}
-
-		go io.Copy(os.Stdout, stdout)
-		go io.Copy(os.Stderr, stderr)
-		go func() {
-			stdin.Write([]byte(body))
-			stdin.Close()
-		}()
+		a.execCmd(m, jid, body)
 	}
 
 	return
+}
+
+func (a *app) execCmd(m *sqsnotify.SQSMessage, jid, body string) error {
+	// Create and setup a exec.Cmd.
+	cmd := exec.Command(a.cmd, a.args...)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		a.logNg(body, err)
+		a.jobs.Fail(jid)
+		return err
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		a.logNg(body, err)
+		a.jobs.Fail(jid)
+		return err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		a.logNg(body, err)
+		a.jobs.Fail(jid)
+		return err
+	}
+
+	if a.nowait {
+		a.deleteSQSMessage(m)
+		a.w.Run(workerJob{cmd, func(r workerResult) {
+			a.logOk(body, r)
+			if r.Success() || a.ignoreFailure {
+				a.jobs.Complete(jid)
+			} else {
+				a.jobs.Fail(jid)
+			}
+		}})
+	} else {
+		a.w.Run(workerJob{cmd, func(r workerResult) {
+			a.logOk(body, r)
+			if r.Success() || a.ignoreFailure {
+				a.jobs.Complete(jid)
+				a.deleteSQSMessage(m)
+			} else {
+				a.jobs.Fail(jid)
+			}
+		}})
+	}
+
+	go io.Copy(os.Stdout, stdout)
+	go io.Copy(os.Stderr, stderr)
+	go func() {
+		stdin.Write([]byte(body))
+		stdin.Close()
+	}()
+
+	return nil
 }
 
 func main() {
