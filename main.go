@@ -159,7 +159,7 @@ func (a *app) run() (err error) {
 		}
 
 		body := *m.Body()
-		jid := a.digest(body)
+		jid := m.ID()
 		switch a.jobs.StartTry(jid) {
 		case jobRunning:
 			a.logSkip(body)
