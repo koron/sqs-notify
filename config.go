@@ -20,6 +20,7 @@ const (
 )
 
 type config struct {
+	daemon        bool
 	region        string
 	worker        int
 	nowait        bool
@@ -36,6 +37,7 @@ type config struct {
 
 func getConfig() (*config, error) {
 	var (
+		daemon        bool
 		region        string
 		worker        int
 		nowait        bool
@@ -48,6 +50,7 @@ func getConfig() (*config, error) {
 		mode          string
 	)
 
+	flag.BoolVar(&daemon, "daemon", false, "run as a daemon")
 	flag.StringVar(&region, "region", "us-east-1", "AWS Region for queue")
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
 	flag.BoolVar(&nowait, "nowait", false, "Don't wait end of command")
@@ -85,6 +88,7 @@ func getConfig() (*config, error) {
 	}
 
 	return &config{
+		daemon:        daemon,
 		region:        region,
 		worker:        worker,
 		nowait:        nowait,
