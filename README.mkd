@@ -1,5 +1,7 @@
 # SQS notify
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/koron/sqs-notify)](https://goreportcard.com/report/github.com/koron/sqs-notify)
+
 Listen a SQS queue, execute a command when received.  A message body is passed
 as STDIN to the command.
 
