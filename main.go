@@ -26,6 +26,7 @@ type app struct {
 	worker        int
 	nowait        bool
 	ignoreFailure bool
+	digestID      bool
 	retryMax      int
 	jobs          jobs
 	notify        *sqsnotify.SQSNotify
@@ -43,7 +44,8 @@ OPTIONS:
   -region {region} :    name of region (default: us-east-1)
   -worker {num} :       num of workers (default: 4)
   -nowait :             don't wait end of command to delete message
-  -ignorefailure:       don't care command results, treat it as success always
+  -ignorefailure :      don't care command results, treat it as success always
+  -digest-id :          use digest as message identifier
   -retrymax {num} :     num of retry count (default: 4)
   -msgcache {num} :     num of last received message in cache (default: 0)
   -redis {path} :       use redis as message cache (default: disabled)
@@ -70,7 +72,7 @@ func (a *app) log(v ...interface{}) {
 	if a.logger == nil {
 		return
 	}
-	a.logger.Print(v)
+	a.logger.Print(v...)
 }
 
 func (a *app) logOk(m string, r workerResult) {
@@ -105,6 +107,13 @@ func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
 
 func (a *app) digest(s string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(s)))
+}
+
+func (a *app) messageID(m *sqsnotify.SQSMessage) string {
+	if a.digestID {
+		return a.digest(*m.Body())
+	}
+	return m.ID()
 }
 
 func (a *app) run() (err error) {
@@ -159,7 +168,7 @@ func (a *app) run() (err error) {
 		}
 
 		body := *m.Body()
-		jid := a.digest(body)
+		jid := a.messageID(m)
 		switch a.jobs.StartTry(jid) {
 		case jobRunning:
 			a.logSkip(body)

@@ -87,6 +87,14 @@ func newMessage(m *sqs.Message, q *sqs.Queue) *SQSMessage {
 	return &SQSMessage{nil, m, false, q}
 }
 
+// ID returns MessageId of the message.
+func (m *SQSMessage) ID() string {
+	if m.Message == nil {
+		return ""
+	}
+	return m.Message.MessageId
+}
+
 // Body returns body of message.
 func (m *SQSMessage) Body() *string {
 	if m.Message == nil {
