@@ -25,6 +25,7 @@ type config struct {
 	worker        int
 	nowait        bool
 	ignoreFailure bool
+	digestID      bool
 	retryMax      int
 	msgcache      int
 	redis         string
@@ -42,6 +43,7 @@ func getConfig() (*config, error) {
 		worker        int
 		nowait        bool
 		ignoreFailure bool
+		digestID      bool
 		retryMax      int
 		msgcache      int
 		redis         string
@@ -55,6 +57,7 @@ func getConfig() (*config, error) {
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
 	flag.BoolVar(&nowait, "nowait", false, "Don't wait end of command")
 	flag.BoolVar(&ignoreFailure, "ignorefailure", false, "Don't care command failures")
+	flag.BoolVar(&digestID, "digest-id", false, "Use digest as message identifier")
 	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
 	flag.IntVar(&msgcache, "msgcache", 0, "Num of last messages in cache")
 	flag.StringVar(&redis, "redis", "", "Use redis as messages cache")
@@ -93,6 +96,7 @@ func getConfig() (*config, error) {
 		worker:        worker,
 		nowait:        nowait,
 		ignoreFailure: ignoreFailure,
+		digestID:      digestID,
 		retryMax:      retryMax,
 		msgcache:      msgcache,
 		redis:         redis,
@@ -136,16 +140,18 @@ func (c *config) toApp() (*app, error) {
 	}
 
 	return &app{
-		logger:   l,
-		auth:     auth,
-		region:   region,
-		worker:   c.worker,
-		nowait:   c.nowait,
-		retryMax: c.retryMax,
-		jobs:     jobs,
-		notify:   notify,
-		cmd:      c.cmd,
-		args:     c.args,
+		logger:        l,
+		auth:          auth,
+		region:        region,
+		worker:        c.worker,
+		nowait:        c.nowait,
+		ignoreFailure: c.ignoreFailure,
+		digestID:      c.digestID,
+		retryMax:      c.retryMax,
+		jobs:          jobs,
+		notify:        notify,
+		cmd:           c.cmd,
+		args:          c.args,
 	}, nil
 }
 
