@@ -70,7 +70,7 @@ func (a *app) log(v ...interface{}) {
 	if a.logger == nil {
 		return
 	}
-	a.logger.Print(v)
+	a.logger.Print(v...)
 }
 
 func (a *app) logOk(m string, r workerResult) {
