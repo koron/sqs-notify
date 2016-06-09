@@ -40,7 +40,7 @@ func parseJobState(s string) (jobState, bool) {
 }
 
 type jobs interface {
-	StartTry(id string) jobState
+	StartTry(id string) (jobState, error)
 	Fail(id string)
 	Complete(id string)
 	Close()
@@ -66,9 +66,9 @@ type jobManager struct {
 	keys     *list.List
 }
 
-func (m *jobManager) StartTry(id string) jobState {
+func (m *jobManager) StartTry(id string) (jobState, error) {
 	if m.capacity <= 0 {
-		return jobStarted
+		return jobStarted, nil
 	}
 	// get lock for table.
 	m.lock.Lock()
@@ -76,7 +76,7 @@ func (m *jobManager) StartTry(id string) jobState {
 	// search from cached key.
 	s, ok := m.table[id]
 	if ok {
-		return s.state
+		return s.state, nil
 	}
 	// remove old entries, if over capacity.
 	for m.keys.Len() >= m.capacity {
@@ -90,7 +90,7 @@ func (m *jobManager) StartTry(id string) jobState {
 		el:    el,
 		state: jobRunning,
 	}
-	return jobStarted
+	return jobStarted, nil
 }
 
 func (m *jobManager) Fail(id string) {

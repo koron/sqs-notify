@@ -1,12 +1,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
 	"gopkg.in/redis.v3"
+)
+
+var (
+	errNilCmd = errors.New("redis client returned nil response")
 )
 
 type redisJobsOptions struct {
@@ -44,15 +49,20 @@ func newRedisJobs(opt redisJobsOptions) (*redisJobsManager, error) {
 	}, nil
 }
 
-func (m *redisJobsManager) StartTry(id string) jobState {
+func (m *redisJobsManager) StartTry(id string) (jobState, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	s, ok := m.get(id)
-	if ok {
-		return s
+	s, ok, err := m.get(id)
+	if err != nil {
+		return 0, err
 	}
-	m.insert(id, jobRunning)
-	return jobStarted
+	if ok {
+		return s, nil
+	}
+	if _, err := m.insert(id, jobRunning); err != nil {
+		return 0, err
+	}
+	return jobStarted, nil
 }
 
 func (m *redisJobsManager) Fail(id string) {
@@ -95,65 +105,83 @@ func (m *redisJobsManager) key(id string) string {
 	return m.keyPrefix + id
 }
 
-func (m *redisJobsManager) insert(id string, s jobState) bool {
+func (m *redisJobsManager) insert(id string, s jobState) (bool, error) {
 	c := m.client.SetNX(m.key(id), s.String(), m.expiration)
 	if c == nil {
 		m.logNilCmd("SetNX")
-		return false
+		return false, errNilCmd
 	}
 	b, err := c.Result()
 	if err != nil {
-		m.logCmdErr("SetNX", err)
-		return false
+		if err != redis.Nil {
+			m.logCmdErr("SetNX", err)
+		} else {
+			err = nil
+		}
+		return false, err
 	}
-	return b
+	return b, nil
 }
 
-func (m *redisJobsManager) update(id string, s jobState) bool {
+func (m *redisJobsManager) update(id string, s jobState) (bool, error) {
 	c := m.client.SetXX(m.key(id), s.String(), m.expiration)
 	if c == nil {
 		m.logNilCmd("SetXX")
-		return false
+		return false, errNilCmd
 	}
 	b, err := c.Result()
 	if err != nil {
-		m.logCmdErr("SetXX", err)
-		return false
+		if err != redis.Nil {
+			m.logCmdErr("SetXX", err)
+		} else {
+			err = nil
+		}
+		return false, err
 	}
-	return b
+	return b, nil
 }
 
-func (m *redisJobsManager) remove(id string) bool {
+func (m *redisJobsManager) remove(id string) (bool, error) {
 	c := m.client.Del(m.key(id))
 	if c == nil {
 		m.logNilCmd("Del")
-		return false
+		return false, errNilCmd
 	}
 	n, err := c.Result()
 	if err != nil {
-		m.logCmdErr("Del", err)
+		if err != redis.Nil {
+			m.logCmdErr("Del", err)
+		} else {
+			err = nil
+		}
+		return false, err
 	}
 	if n != 1 {
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
-func (m *redisJobsManager) get(id string) (jobState, bool) {
+func (m *redisJobsManager) get(id string) (jobState, bool, error) {
 	c := m.client.Get(m.key(id))
 	if c == nil {
 		m.logNilCmd("Get")
-		return 0, false
+		return 0, false, errNilCmd
 	}
 	v, err := c.Result()
 	if err != nil {
-		m.logCmdErr("Get", err)
-		return 0, false
+		if err != redis.Nil {
+			m.logCmdErr("Get", err)
+		} else {
+			err = nil
+		}
+		return 0, false, err
 	}
 	s, ok := parseJobState(v)
 	if !ok {
-		m.logErr(fmt.Errorf("uknown state: %#v", v))
-		return 0, false
+		err := fmt.Errorf("uknown state: %#v", v)
+		m.logErr(err)
+		return 0, false, err
 	}
-	return s, true
+	return s, true, nil
 }

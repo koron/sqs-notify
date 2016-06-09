@@ -155,7 +155,7 @@ func (a *app) run() (err error) {
 			if retryCount >= a.retryMax {
 				a.log("abort:", m.Error)
 				log.Println("sqs-notify (abort):", m.Error)
-				return errors.New("Over retry: " + strconv.Itoa(retryCount))
+				return errors.New("over retry: " + strconv.Itoa(retryCount))
 			}
 			a.log("retry:", m.Error)
 			log.Println("sqs-notify (retry):", m.Error)
@@ -169,7 +169,11 @@ func (a *app) run() (err error) {
 
 		body := *m.Body()
 		jid := a.messageID(m)
-		switch a.jobs.StartTry(jid) {
+		st, err := a.jobs.StartTry(jid)
+		if err != nil {
+			return fmt.Errorf("failed to register/start a job: %s", err)
+		}
+		switch st {
 		case jobRunning:
 			a.logSkip(body)
 			continue
