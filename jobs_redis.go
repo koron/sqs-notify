@@ -32,12 +32,16 @@ func newRedisJobs(opt redisJobsOptions) (jobs, error) {
 	if c == nil {
 		return nil, fmt.Errorf("redis.NewClient failed: %#v", opt.Options)
 	}
+	// check connection.
+	if err := c.Ping().Err(); err != nil {
+		c.Close()
+		return nil, err
+	}
 	m := &redisJobsManager{
 		client:     c,
 		keyPrefix:  opt.KeyPrefix,
 		expiration: expiration,
 	}
-	// TODO: check connection.
 	return m, nil
 }
 
