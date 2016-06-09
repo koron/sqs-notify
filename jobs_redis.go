@@ -23,7 +23,7 @@ type redisJobsManager struct {
 	expiration time.Duration
 }
 
-func newRedisJobs(opt redisJobsOptions) (jobs, error) {
+func newRedisJobs(opt redisJobsOptions) (*redisJobsManager, error) {
 	expiration, err := time.ParseDuration(opt.Expiration)
 	if err != nil {
 		return nil, err
@@ -37,12 +37,11 @@ func newRedisJobs(opt redisJobsOptions) (jobs, error) {
 		c.Close()
 		return nil, err
 	}
-	m := &redisJobsManager{
+	return &redisJobsManager{
 		client:     c,
 		keyPrefix:  opt.KeyPrefix,
 		expiration: expiration,
-	}
-	return m, nil
+	}, nil
 }
 
 func (m *redisJobsManager) StartTry(id string) jobState {

@@ -34,6 +34,8 @@ type config struct {
 	queue         string
 	cmd           string
 	args          []string
+
+	l *log.Logger
 }
 
 func getConfig() (*config, error) {
@@ -121,17 +123,6 @@ func (c *config) toApp() (*app, error) {
 		return nil, errors.New("unknown region:" + c.region)
 	}
 
-	// logfile and pidfile.
-	var l *log.Logger
-	if len(c.logfile) > 0 {
-		if c.logfile == "-" {
-			l = log.New(os.Stdout, "", log.LstdFlags)
-		} else {
-			w := hupwriter.New(c.logfile, c.pidfile)
-			l = log.New(w, "", log.LstdFlags)
-		}
-	}
-
 	notify := sqsnotify.New(auth, region, c.queue)
 
 	jobs, err := c.newJobs()
@@ -140,7 +131,7 @@ func (c *config) toApp() (*app, error) {
 	}
 
 	return &app{
-		logger:        l,
+		logger:        c.logger(),
 		auth:          auth,
 		region:        region,
 		worker:        c.worker,
@@ -155,14 +146,37 @@ func (c *config) toApp() (*app, error) {
 	}, nil
 }
 
+func (c *config) logger() *log.Logger {
+	if c.l != nil {
+		return c.l
+	}
+	if len(c.logfile) > 0 {
+		if c.logfile == "-" {
+			c.l = log.New(os.Stdout, "", log.LstdFlags)
+		} else {
+			w := hupwriter.New(c.logfile, c.pidfile)
+			c.l = log.New(w, "", log.LstdFlags)
+		}
+	}
+	if c.l == nil {
+		c.l = log.New(ioutil.Discard, "", 0)
+	}
+	return c.l
+}
+
 func (c *config) newJobs() (jobs, error) {
 	if c.redis != "" {
-		return loadRedisJobs(c.redis)
+		rj, err := loadRedisJobs(c.redis)
+		if err != nil {
+			return nil, err
+		}
+		rj.logger = c.logger()
+		return rj, nil
 	}
 	return newJobs(c.msgcache)
 }
 
-func loadRedisJobs(path string) (jobs, error) {
+func loadRedisJobs(path string) (*redisJobsManager, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
