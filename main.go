@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -26,6 +27,7 @@ type app struct {
 	worker        int
 	nowait        bool
 	ignoreFailure bool
+	deleteOnSkip  bool
 	digestID      bool
 	retryMax      int
 	jobs          jobs
@@ -40,22 +42,9 @@ func usage() {
 	fmt.Printf(`Usage: %s [OPTIONS] {queue name} {command and args...}
 
 OPTIONS:
-  -daemon :             run as a daemon
-  -region {region} :    name of region (default: us-east-1)
-  -worker {num} :       num of workers (default: 4)
-  -nowait :             don't wait end of command to delete message
-  -ignorefailure :      don't care command results, treat it as success always
-  -digest-id :          use digest as message identifier
-  -retrymax {num} :     num of retry count (default: 4)
-  -msgcache {num} :     num of last received message in cache (default: 0)
-  -redis {path} :       use redis as message cache (default: disabled)
-  -logfile {path} :     log file path ("-" for stdout)
-  -pidfile {path} :     pid file path (available with -logfile)
-
-  -mode {mode} :        pre-defined set of options for specific usecases
-
-Source: https://github.com/koron/sqs-notify
 `, progname)
+	flag.PrintDefaults()
+	fmt.Println("\nSource: https://github.com/koron/sqs-notify")
 	os.Exit(1)
 }
 
@@ -176,6 +165,9 @@ func (a *app) run() (err error) {
 		switch st {
 		case jobRunning:
 			a.logSkip(body)
+			if a.deleteOnSkip {
+				a.deleteSQSMessage(m)
+			}
 			continue
 		case jobCompleted:
 			a.logSkip(body)

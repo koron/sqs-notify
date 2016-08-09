@@ -25,6 +25,7 @@ type config struct {
 	worker        int
 	nowait        bool
 	ignoreFailure bool
+	deleteOnSkip  bool
 	digestID      bool
 	retryMax      int
 	msgcache      int
@@ -45,6 +46,7 @@ func getConfig() (*config, error) {
 		worker        int
 		nowait        bool
 		ignoreFailure bool
+		deleteOnSkip  bool
 		digestID      bool
 		retryMax      int
 		msgcache      int
@@ -59,6 +61,7 @@ func getConfig() (*config, error) {
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
 	flag.BoolVar(&nowait, "nowait", false, "Don't wait end of command")
 	flag.BoolVar(&ignoreFailure, "ignorefailure", false, "Don't care command failures")
+	flag.BoolVar(&deleteOnSkip, "deleteonskip", false, "Delete SQS message when job was skipped (experimental)")
 	flag.BoolVar(&digestID, "digest-id", false, "Use digest as message identifier")
 	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
 	flag.IntVar(&msgcache, "msgcache", 0, "Num of last messages in cache")
@@ -66,6 +69,7 @@ func getConfig() (*config, error) {
 	flag.StringVar(&logfile, "logfile", "", "Log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
 	flag.StringVar(&mode, "mode", "", "pre-defined set of options for specific usecases")
+	flag.Usage = usage
 	flag.Parse()
 
 	// Parse arguments.
@@ -98,6 +102,7 @@ func getConfig() (*config, error) {
 		worker:        worker,
 		nowait:        nowait,
 		ignoreFailure: ignoreFailure,
+		deleteOnSkip:  deleteOnSkip,
 		digestID:      digestID,
 		retryMax:      retryMax,
 		msgcache:      msgcache,
@@ -137,6 +142,7 @@ func (c *config) toApp() (*app, error) {
 		worker:        c.worker,
 		nowait:        c.nowait,
 		ignoreFailure: c.ignoreFailure,
+		deleteOnSkip:  c.deleteOnSkip,
 		digestID:      c.digestID,
 		retryMax:      c.retryMax,
 		jobs:          jobs,

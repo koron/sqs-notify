@@ -38,19 +38,32 @@ From online help.
 Usage: sqs-notify [OPTIONS] {queue name} {command and args...}
 
 OPTIONS:
-  -daemon :             run as a daemon
-  -region {region} :    name of region (default: us-east-1)
-  -worker {num} :       num of workers (default: 4)
-  -nowait :             didn't wait end of command to delete message
-  -ignorefailure :      don't care command results, treat it as success always
-  -digest-id :          use digest as message identifier
-  -retrymax {num} :     num of retry count (default: 4)
-  -msgcache {num} :     num of last received messages in cache (default: 0)
-  -redis {path} :       use redis as message cache (default: disabled)
-  -logfile {path} :     log file path ("-" for stdout)
-  -pidfile {path} :     pid file path (available with -logfile)
-
-  -mode {mode} :        pre-defined set of options for specific usecases
+  -daemon
+        run as a daemon
+  -deleteonskip
+        Delete SQS message when job was skipped (experimental)
+  -digest-id
+        Use digest as message identifier
+  -ignorefailure
+        Don't care command failures
+  -logfile string
+        Log file path
+  -mode string
+        pre-defined set of options for specific usecases
+  -msgcache int
+        Num of last messages in cache
+  -nowait
+        Don't wait end of command
+  -pidfile string
+        PID file path (require -logfile)
+  -redis string
+        Use redis as messages cache
+  -region string
+        AWS Region for queue (default "us-east-1")
+  -retrymax int
+        Num of retry count (default 4)
+  -worker int
+        Num of workers (default 4)
 
 Source: https://github.com/koron/sqs-notify
 ```
