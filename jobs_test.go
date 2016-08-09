@@ -3,14 +3,20 @@ package main
 import "testing"
 
 func jobAssertStart(t *testing.T, j jobs, id string, n int) {
-	s := j.StartTry(id)
+	s, err := j.StartTry(id)
+	if err != nil {
+		t.Fatalf("failed to start job: %s", err)
+	}
 	if s != jobStarted {
 		t.Errorf(`couldn't start job:%s(%d) with %#v`, id, n, s)
 	}
 }
 
 func jobAssertNotStart(t *testing.T, j jobs, id string, n int) {
-	s := j.StartTry(id)
+	s, err := j.StartTry(id)
+	if err != nil {
+		t.Fatalf("failed to start job: %s", err)
+	}
 	if s == jobStarted {
 		t.Errorf(`job:%s(%d) must not be started`, id, n)
 	}
@@ -54,10 +60,10 @@ func TestJobs(t *testing.T) {
 
 	// complete
 	j.Complete("corge")
-	if s := j.StartTry("corge"); s != jobCompleted {
+	if s, _ := j.StartTry("corge"); s != jobCompleted {
 		t.Errorf(`"corge" must not started with %d, but %d`, jobCompleted, s)
 	}
-	if s := j.StartTry("foo"); s != jobRunning {
+	if s, _ := j.StartTry("foo"); s != jobRunning {
 		t.Errorf(`"corge" must not started with %d, but %d`, jobRunning, s)
 	}
 }
