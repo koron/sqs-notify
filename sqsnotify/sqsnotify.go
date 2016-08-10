@@ -1,11 +1,14 @@
 package sqsnotify
 
 import (
+	"sync"
+
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/sqs"
 )
 
-const messageCount = 1
+// MessageCount specifies message amount to get at once.
+var MessageCount = 1
 
 // SQSNotify provides SQS message stream.
 type SQSNotify struct {
@@ -16,6 +19,9 @@ type SQSNotify struct {
 	queue *sqs.Queue
 
 	running bool
+
+	deleteQueue []sqs.Message
+	dql         sync.Mutex
 }
 
 // New creates and returns a SQSNotify instance.
@@ -33,17 +39,24 @@ func New(auth aws.Auth, region aws.Region, name string) *SQSNotify {
 func (n *SQSNotify) Open() (err error) {
 	awsSQS := sqs.New(n.auth, n.region)
 	n.queue, err = awsSQS.GetQueue(n.name)
-	return
+	if err != nil {
+		return err
+	}
+	n.deleteQueue = make([]sqs.Message, 0, MessageCount)
+	return nil
 }
 
 // Listen starts the stream.
 func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
-	ch := make(chan *SQSMessage, messageCount)
+	ch := make(chan *SQSMessage, 1)
 	go func() {
 		n.running = true
 	loop:
 		for n.running {
-			resp, err := n.queue.ReceiveMessage(messageCount)
+			if err := n.flushDeleteQueue(); err != nil {
+				ch <- newErrorMessage(err)
+			}
+			resp, err := n.queue.ReceiveMessage(MessageCount)
 			if err != nil {
 				ch <- newErrorMessage(err)
 				continue
@@ -58,6 +71,29 @@ func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 		close(ch)
 	}()
 	return ch, nil
+}
+
+// ReserveDelete reserves to delete message.
+func (n *SQSNotify) ReserveDelete(m *SQSMessage) {
+	if m == nil || m.deleted {
+		return
+	}
+	n.dql.Lock()
+	n.deleteQueue = append(n.deleteQueue, *m.Message)
+	m.deleted = true
+	n.dql.Unlock()
+}
+
+func (n *SQSNotify) flushDeleteQueue() error {
+	n.dql.Lock()
+	defer n.dql.Unlock()
+	if len(n.deleteQueue) == 0 {
+		return nil
+	}
+	_, err := n.queue.DeleteMessageBatch(n.deleteQueue)
+	// TODO: log messages which not be deleted.
+	n.deleteQueue = n.deleteQueue[:]
+	return err
 }
 
 // Name returns queue name.
@@ -109,5 +145,8 @@ func (m *SQSMessage) Delete() (err error) {
 		return nil
 	}
 	_, err = m.queue.DeleteMessage(m.Message)
+	if err == nil {
+		m.deleted = true
+	}
 	return
 }

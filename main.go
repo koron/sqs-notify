@@ -28,6 +28,8 @@ type app struct {
 	nowait        bool
 	ignoreFailure bool
 	deleteOnSkip  bool
+	batchDelete   bool
+	messageCount  int
 	digestID      bool
 	retryMax      int
 	jobs          jobs
@@ -90,6 +92,10 @@ func (a *app) logNg(m string, err error) {
 }
 
 func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
+	if a.batchDelete {
+		a.notify.ReserveDelete(m)
+		return
+	}
 	// FIXME: log it when failed to delete.
 	m.Delete()
 }
@@ -107,6 +113,7 @@ func (a *app) messageID(m *sqsnotify.SQSMessage) string {
 
 func (a *app) run() (err error) {
 	// Open a queue.
+	sqsnotify.MessageCount = a.messageCount
 	err = a.notify.Open()
 	if err != nil {
 		return

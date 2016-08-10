@@ -26,6 +26,8 @@ type config struct {
 	nowait        bool
 	ignoreFailure bool
 	deleteOnSkip  bool
+	batchDelete   bool
+	messageCount  int
 	digestID      bool
 	retryMax      int
 	msgcache      int
@@ -47,6 +49,8 @@ func getConfig() (*config, error) {
 		nowait        bool
 		ignoreFailure bool
 		deleteOnSkip  bool
+		batchDelete   bool
+		messageCount  int
 		digestID      bool
 		retryMax      int
 		msgcache      int
@@ -62,6 +66,10 @@ func getConfig() (*config, error) {
 	flag.BoolVar(&nowait, "nowait", false, "Don't wait end of command")
 	flag.BoolVar(&ignoreFailure, "ignorefailure", false, "Don't care command failures")
 	flag.BoolVar(&deleteOnSkip, "deleteonskip", false, "Delete SQS message when job was skipped (experimental)")
+	flag.BoolVar(&batchDelete, "batchdelete", false,
+		"Delete SQS messages by batch (experimental)")
+	flag.IntVar(&messageCount, "messagecount", 10,
+		"retrieve multiple messages at once (experimental)")
 	flag.BoolVar(&digestID, "digest-id", false, "Use digest as message identifier")
 	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
 	flag.IntVar(&msgcache, "msgcache", 0, "Num of last messages in cache")
@@ -81,6 +89,10 @@ func getConfig() (*config, error) {
 	// Check consistencies of options
 	if len(pidfile) > 0 && len(logfile) == 0 {
 		return nil, errors.New("`-pidfile' requires `-logfile' option")
+	}
+
+	if messageCount <= 0 {
+		return nil, errors.New("`-messagecount` should be greater than zero")
 	}
 
 	// Apply modes.
@@ -103,6 +115,8 @@ func getConfig() (*config, error) {
 		nowait:        nowait,
 		ignoreFailure: ignoreFailure,
 		deleteOnSkip:  deleteOnSkip,
+		batchDelete:   batchDelete,
+		messageCount:  messageCount,
 		digestID:      digestID,
 		retryMax:      retryMax,
 		msgcache:      msgcache,
@@ -143,6 +157,8 @@ func (c *config) toApp() (*app, error) {
 		nowait:        c.nowait,
 		ignoreFailure: c.ignoreFailure,
 		deleteOnSkip:  c.deleteOnSkip,
+		batchDelete:   c.batchDelete,
+		messageCount:  c.messageCount,
 		digestID:      c.digestID,
 		retryMax:      c.retryMax,
 		jobs:          jobs,
