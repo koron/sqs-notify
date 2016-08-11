@@ -9,6 +9,14 @@ import (
 
 // MessageCount specifies message amount to get at once.
 var MessageCount = 1
+const maxDelete = 10
+
+func min(a, b int) int {
+	if a < b {
+		return b
+	}
+	return a
+}
 
 // SQSNotify provides SQS message stream.
 type SQSNotify struct {
@@ -42,7 +50,7 @@ func (n *SQSNotify) Open() (err error) {
 	if err != nil {
 		return err
 	}
-	n.deleteQueue = make([]sqs.Message, 0, MessageCount)
+	n.deleteQueue = make([]sqs.Message, 0, maxDelete)
 	return nil
 }
 
@@ -82,6 +90,10 @@ func (n *SQSNotify) ReserveDelete(m *SQSMessage) {
 	n.deleteQueue = append(n.deleteQueue, *m.Message)
 	m.deleted = true
 	n.dql.Unlock()
+	// flush to delete ASAP when 10 messages are reserved.
+	if len(n.deleteQueue) >= maxDelete {
+		n.flushDeleteQueue()
+	}
 }
 
 func (n *SQSNotify) flushDeleteQueue() error {
@@ -90,10 +102,17 @@ func (n *SQSNotify) flushDeleteQueue() error {
 	if len(n.deleteQueue) == 0 {
 		return nil
 	}
-	_, err := n.queue.DeleteMessageBatch(n.deleteQueue)
-	// TODO: log messages which not be deleted.
+	for q := n.deleteQueue; len(q) > 0; {
+		l := min(len(q), maxDelete)
+		_, err := n.queue.DeleteMessageBatch(q[0:l])
+		if err != nil {
+			// TODO: log messages which not be deleted.
+			return err
+		}
+		q = q[l:]
+	}
 	n.deleteQueue = n.deleteQueue[:]
-	return err
+	return nil
 }
 
 // Name returns queue name.
