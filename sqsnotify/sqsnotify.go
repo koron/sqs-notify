@@ -13,9 +13,9 @@ const maxDelete = 10
 
 func min(a, b int) int {
 	if a < b {
-		return b
+		return a
 	}
-	return a
+	return b
 }
 
 // SQSNotify provides SQS message stream.
