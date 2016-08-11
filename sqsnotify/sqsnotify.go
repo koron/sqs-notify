@@ -111,7 +111,7 @@ func (n *SQSNotify) flushDeleteQueue() error {
 		}
 		q = q[l:]
 	}
-	n.deleteQueue = n.deleteQueue[:]
+	n.deleteQueue = n.deleteQueue[:0]
 	return nil
 }
 
