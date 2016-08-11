@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/sqs"
@@ -64,12 +63,11 @@ func send(rname, qname, prefix string, num int) error {
 		return err
 	}
 	msg := make([]string, 0, maxSend)
-	ts := time.Now().Format(time.RFC3339)
 	for i := 0; i < num; {
 		msg = msg[:0]
 		n := min(num-i, maxSend)
 		for j := i; j < i+n; j++ {
-			msg = append(msg, fmt.Sprintf("%s%s #%d", prefix, ts, j+1))
+			msg = append(msg, fmt.Sprintf("%s%d", prefix, j+1))
 		}
 		_, err := queue.SendMessageBatchString(msg)
 		if err != nil {

@@ -9,6 +9,7 @@ import (
 
 // MessageCount specifies message amount to get at once.
 var MessageCount = 1
+
 const maxDelete = 10
 
 func min(a, b int) int {
@@ -69,8 +70,8 @@ func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 				ch <- newErrorMessage(err)
 				continue
 			}
-			for _, m := range resp.Messages {
-				ch <- newMessage(&m, n.queue)
+			for _, m := range n.unique(resp.Messages) {
+				ch <- newMessage(m, n.queue)
 				if !n.running {
 					break loop
 				}
@@ -81,13 +82,29 @@ func (n *SQSNotify) Listen() (chan *SQSMessage, error) {
 	return ch, nil
 }
 
+func (n *SQSNotify) unique(list []sqs.Message) []sqs.Message {
+	uniq := make([]sqs.Message, 0, len(list))
+	index := make(map[string]int)
+	for _, m := range list {
+		k := m.MessageId
+		n, ok := index[k]
+		if ok {
+			uniq[n] = m
+			continue
+		}
+		index[k] = len(uniq)
+		uniq = append(uniq, m)
+	}
+	return uniq
+}
+
 // ReserveDelete reserves to delete message.
 func (n *SQSNotify) ReserveDelete(m *SQSMessage) {
-	if m == nil || m.deleted {
+	if m.IsEmpty() || m.deleted {
 		return
 	}
 	n.dql.Lock()
-	n.deleteQueue = append(n.deleteQueue, *m.Message)
+	n.deleteQueue = append(n.deleteQueue, m.Message)
 	m.deleted = true
 	n.dql.Unlock()
 	// flush to delete ASAP when 10 messages are reserved.
@@ -128,31 +145,40 @@ func (n *SQSNotify) Stop() {
 // SQSMessage represent a SQS message.
 type SQSMessage struct {
 	Error   error
-	Message *sqs.Message
+	Message sqs.Message
 
 	deleted bool
 	queue   *sqs.Queue
 }
 
-func newErrorMessage(err error) *SQSMessage {
-	return &SQSMessage{err, nil, true, nil}
+func (m SQSMessage) IsEmpty() bool {
+	return m.Message.MessageId == ""
 }
 
-func newMessage(m *sqs.Message, q *sqs.Queue) *SQSMessage {
-	return &SQSMessage{nil, m, false, q}
+func newErrorMessage(err error) *SQSMessage {
+	return &SQSMessage{
+		Error:   err,
+		deleted: true,
+		queue:   nil,
+	}
+}
+
+func newMessage(m sqs.Message, q *sqs.Queue) *SQSMessage {
+	return &SQSMessage{
+		Message: m,
+		deleted: false,
+		queue:   q,
+	}
 }
 
 // ID returns MessageId of the message.
 func (m *SQSMessage) ID() string {
-	if m.Message == nil {
-		return ""
-	}
 	return m.Message.MessageId
 }
 
 // Body returns body of message.
 func (m *SQSMessage) Body() *string {
-	if m.Message == nil {
+	if m.IsEmpty() {
 		return nil
 	}
 	return &m.Message.Body
@@ -163,7 +189,7 @@ func (m *SQSMessage) Delete() (err error) {
 	if m.deleted {
 		return nil
 	}
-	_, err = m.queue.DeleteMessage(m.Message)
+	_, err = m.queue.DeleteMessage(&m.Message)
 	if err == nil {
 		m.deleted = true
 	}
