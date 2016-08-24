@@ -61,8 +61,7 @@ func getConfig() (*config, error) {
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
 	flag.BoolVar(&nowait, "nowait", false, "Don't wait end of command")
 	flag.BoolVar(&ignoreFailure, "ignorefailure", false, "Don't care command failures")
-	flag.IntVar(&messageCount, "messagecount", 10,
-		"retrieve multiple messages at once (experimental)")
+	flag.IntVar(&messageCount, "messagecount", 10, "retrieve multiple messages at once")
 	flag.BoolVar(&digestID, "digest-id", false, "Use digest as message identifier")
 	flag.IntVar(&retryMax, "retrymax", 4, "Num of retry count")
 	flag.IntVar(&msgcache, "msgcache", 0, "Num of last messages in cache")
