@@ -40,14 +40,14 @@ Usage: sqs-notify [OPTIONS] {queue name} {command and args...}
 OPTIONS:
   -daemon
         run as a daemon
-  -deleteonskip
-        Delete SQS message when job was skipped (experimental)
   -digest-id
         Use digest as message identifier
   -ignorefailure
         Don't care command failures
   -logfile string
         Log file path
+  -messagecount int
+        retrieve multiple messages at once (default 10)
   -mode string
         pre-defined set of options for specific usecases
   -msgcache int

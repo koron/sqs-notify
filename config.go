@@ -84,7 +84,9 @@ func getConfig() (*config, error) {
 	}
 
 	if messageCount <= 0 {
-		return nil, errors.New("`-messagecount` should be greater than zero")
+		return nil, errors.New("`-messagecount` should be > 0")
+	} else if messagecount > 10 {
+		return nil, errors.New("`-messagecount` should be <= 10")
 	}
 
 	// Apply modes.
