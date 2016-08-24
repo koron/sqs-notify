@@ -27,7 +27,6 @@ type app struct {
 	worker        int
 	nowait        bool
 	ignoreFailure bool
-	batchDelete   bool
 	messageCount  int
 	digestID      bool
 	retryMax      int
@@ -91,12 +90,7 @@ func (a *app) logNg(m string, err error) {
 }
 
 func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
-	if a.batchDelete {
-		a.notify.ReserveDelete(m)
-		return
-	}
-	// FIXME: log it when failed to delete.
-	m.Delete()
+	a.notify.ReserveDelete(m)
 }
 
 func (a *app) digest(s string) string {

@@ -25,7 +25,6 @@ type config struct {
 	worker        int
 	nowait        bool
 	ignoreFailure bool
-	batchDelete   bool
 	messageCount  int
 	digestID      bool
 	retryMax      int
@@ -47,7 +46,6 @@ func getConfig() (*config, error) {
 		worker        int
 		nowait        bool
 		ignoreFailure bool
-		batchDelete   bool
 		messageCount  int
 		digestID      bool
 		retryMax      int
@@ -63,8 +61,6 @@ func getConfig() (*config, error) {
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
 	flag.BoolVar(&nowait, "nowait", false, "Don't wait end of command")
 	flag.BoolVar(&ignoreFailure, "ignorefailure", false, "Don't care command failures")
-	flag.BoolVar(&batchDelete, "batchdelete", false,
-		"Delete SQS messages by batch (experimental)")
 	flag.IntVar(&messageCount, "messagecount", 10,
 		"retrieve multiple messages at once (experimental)")
 	flag.BoolVar(&digestID, "digest-id", false, "Use digest as message identifier")
@@ -111,7 +107,6 @@ func getConfig() (*config, error) {
 		worker:        worker,
 		nowait:        nowait,
 		ignoreFailure: ignoreFailure,
-		batchDelete:   batchDelete,
 		messageCount:  messageCount,
 		digestID:      digestID,
 		retryMax:      retryMax,
@@ -152,7 +147,6 @@ func (c *config) toApp() (*app, error) {
 		worker:        c.worker,
 		nowait:        c.nowait,
 		ignoreFailure: c.ignoreFailure,
-		batchDelete:   c.batchDelete,
 		messageCount:  c.messageCount,
 		digestID:      c.digestID,
 		retryMax:      c.retryMax,
