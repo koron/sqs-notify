@@ -27,7 +27,6 @@ type app struct {
 	worker        int
 	nowait        bool
 	ignoreFailure bool
-	deleteOnSkip  bool
 	batchDelete   bool
 	messageCount  int
 	digestID      bool
@@ -172,7 +171,7 @@ func (a *app) run() (err error) {
 		switch st {
 		case jobRunning:
 			a.logSkip(body)
-			if a.deleteOnSkip {
+			if a.nowait {
 				a.deleteSQSMessage(m)
 			}
 			continue
