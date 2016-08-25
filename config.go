@@ -41,6 +41,7 @@ type config struct {
 
 func getConfig() (*config, error) {
 	var (
+		version       bool
 		daemon        bool
 		region        string
 		worker        int
@@ -56,6 +57,7 @@ func getConfig() (*config, error) {
 		mode          string
 	)
 
+	flag.BoolVar(&version, "version", false, "show version")
 	flag.BoolVar(&daemon, "daemon", false, "run as a daemon")
 	flag.StringVar(&region, "region", "us-east-1", "AWS Region for queue")
 	flag.IntVar(&worker, "worker", 4, "Num of workers")
@@ -72,6 +74,10 @@ func getConfig() (*config, error) {
 	flag.Usage = usage
 	flag.Parse()
 
+	if version {
+		showVersion()
+	}
+
 	// Parse arguments.
 	args := flag.Args()
 	if len(args) < 2 {
@@ -85,7 +91,7 @@ func getConfig() (*config, error) {
 
 	if messageCount <= 0 {
 		return nil, errors.New("`-messagecount` should be > 0")
-	} else if messagecount > 10 {
+	} else if messageCount > 10 {
 		return nil, errors.New("`-messagecount` should be <= 10")
 	}
 

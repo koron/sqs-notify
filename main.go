@@ -18,7 +18,10 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify"
 )
 
-const progname = "sqs-notify"
+const (
+	progname = "sqs-notify"
+	version  = "1.5"
+)
 
 type app struct {
 	logger        *log.Logger
@@ -36,6 +39,11 @@ type app struct {
 	args          []string
 
 	w *workers
+}
+
+func showVersion() {
+	fmt.Printf("%s version %s\n", progname, version)
+	os.Exit(1)
 }
 
 func usage() {
