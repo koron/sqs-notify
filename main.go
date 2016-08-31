@@ -20,7 +20,7 @@ import (
 
 const (
 	progname = "sqs-notify"
-	version  = "1.5"
+	version  = "1.5.1"
 )
 
 type app struct {
