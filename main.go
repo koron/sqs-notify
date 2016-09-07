@@ -18,10 +18,8 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify"
 )
 
-const (
-	progname = "sqs-notify"
-	version  = "1.5.1"
-)
+const progname = "sqs-notify"
+var version  = "1.5.1"
 
 type app struct {
 	logger        *log.Logger
@@ -70,6 +68,13 @@ func (a *app) log(v ...interface{}) {
 		return
 	}
 	a.logger.Print(v...)
+}
+
+func (a *app) logf(s string, args ...interface{}) {
+	if a.logger == nil {
+		return
+	}
+	a.logger.Printf(s, args...)
 }
 
 func (a *app) logOk(m string, r workerResult) {
@@ -184,7 +189,10 @@ func (a *app) run() (err error) {
 		}
 
 		// Create and setup a exec.Cmd.
-		a.execCmd(m, jid, body)
+		if err := a.execCmd(m, jid, body); err != nil {
+			a.logNg(body, err)
+			a.jobs.Fail(jid)
+		}
 	}
 
 	return
@@ -195,20 +203,14 @@ func (a *app) execCmd(m *sqsnotify.SQSMessage, jid, body string) error {
 	cmd := exec.Command(a.cmd, a.args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		a.logNg(body, err)
-		a.jobs.Fail(jid)
 		return err
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		a.logNg(body, err)
-		a.jobs.Fail(jid)
 		return err
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		a.logNg(body, err)
-		a.jobs.Fail(jid)
 		return err
 	}
 
@@ -237,8 +239,12 @@ func (a *app) execCmd(m *sqsnotify.SQSMessage, jid, body string) error {
 	go io.Copy(os.Stdout, stdout)
 	go io.Copy(os.Stderr, stderr)
 	go func() {
-		stdin.Write([]byte(body))
-		stdin.Close()
+		_, err := stdin.Write([]byte(body))
+		if err != nil {
+			a.logf("\tWARN: failed to write body\tID:%s\tBODY:%s",
+				m.Message.MessageId, body)
+		}
+		_ = stdin.Close()
 	}()
 
 	return nil

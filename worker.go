@@ -45,7 +45,7 @@ func (w *workers) startWorker(num int, jobs chan workerJob) {
 		go func() {
 			switch <-sig {
 			case os.Interrupt:
-				j.Cmd.Process.Kill()
+				_ = j.Cmd.Process.Kill()
 			}
 		}()
 

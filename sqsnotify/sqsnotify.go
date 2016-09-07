@@ -114,7 +114,7 @@ func (n *SQSNotify) ReserveDelete(m *SQSMessage) {
 	n.dql.Unlock()
 	// flush to delete ASAP when 10 messages are reserved.
 	if len(n.deleteQueue) >= maxDelete {
-		n.flushDeleteQueue()
+		_ = n.flushDeleteQueue()
 	}
 }
 
