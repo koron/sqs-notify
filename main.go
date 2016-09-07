@@ -19,7 +19,11 @@ import (
 )
 
 const progname = "sqs-notify"
-var version  = "1.5.1"
+
+var (
+	version  = "1.5"
+	revision = ""
+)
 
 type app struct {
 	logger        *log.Logger
@@ -40,7 +44,11 @@ type app struct {
 }
 
 func showVersion() {
-	fmt.Printf("%s version %s\n", progname, version)
+	v := version
+	if revision != "" {
+		v = fmt.Sprintf("%s (rev:%s)", version, revision)
+	}
+	fmt.Printf("%s version %s\n", progname, v)
 	os.Exit(1)
 }
 
