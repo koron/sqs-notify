@@ -12,7 +12,8 @@ import (
 // MessageCount specifies message amount to get at once.
 var MessageCount = 1
 
-var Logger *log.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+// Logger provides log for sqsnotify.
+var Logger = log.New(ioutil.Discard, "", log.LstdFlags)
 
 const maxDelete = 10
 
@@ -123,7 +124,7 @@ type deleteFault struct {
 }
 
 func (n*SQSNotify) logDeleteMessageBatchError(resp *sqs.DeleteMessageBatchResponse, err error) {
-	faults := make([]deleteFault, 0)
+	var faults []deleteFault
 	for _, r := range resp.DeleteMessageBatchResult {
 		if !r.SenderFault {
 			continue
@@ -176,6 +177,7 @@ type SQSMessage struct {
 	queue   *sqs.Queue
 }
 
+// IsEmpty checks MessageId is empty or not.
 func (m SQSMessage) IsEmpty() bool {
 	return m.Message.MessageId == ""
 }
