@@ -1,3 +1,6 @@
+PROJECT = sqs-notify
+VERSION = v1.5.1
+
 default: test
 
 test:
@@ -25,5 +28,7 @@ report:
 	-go vet ./...
 	@echo ""
 	-golint ./...
+
+-include Mk/*.mk
 
 .PHONY: test test-full lint cyclo report
