@@ -21,7 +21,7 @@ import (
 const progname = "sqs-notify"
 
 var (
-	version  = "1.5"
+	version  = "1.5.1"
 	revision = ""
 )
 
