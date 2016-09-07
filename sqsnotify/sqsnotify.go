@@ -1,6 +1,8 @@
 package sqsnotify
 
 import (
+	"io/ioutil"
+	"log"
 	"sync"
 
 	"github.com/goamz/goamz/aws"
@@ -9,6 +11,9 @@ import (
 
 // MessageCount specifies message amount to get at once.
 var MessageCount = 1
+
+// Logger provides log for sqsnotify.
+var Logger = log.New(ioutil.Discard, "", log.LstdFlags)
 
 const maxDelete = 10
 
@@ -109,7 +114,28 @@ func (n *SQSNotify) ReserveDelete(m *SQSMessage) {
 	n.dql.Unlock()
 	// flush to delete ASAP when 10 messages are reserved.
 	if len(n.deleteQueue) >= maxDelete {
-		n.flushDeleteQueue()
+		_ = n.flushDeleteQueue()
+	}
+}
+
+type deleteFault struct {
+	ID string
+	Code string
+}
+
+func (n*SQSNotify) logDeleteMessageBatchError(resp *sqs.DeleteMessageBatchResponse, err error) {
+	var faults []deleteFault
+	for _, r := range resp.DeleteMessageBatchResult {
+		if !r.SenderFault {
+			continue
+		}
+		faults = append(faults, deleteFault{ID: r.Id, Code: r.Code})
+	}
+	if len(faults) > 0 {
+		Logger.Printf("\tDELETE_FAULTS\t%+v", faults)
+	}
+	if err != nil {
+		Logger.Printf("\tDELETE_ERROR\terror:%s", err)
 	}
 }
 
@@ -121,9 +147,9 @@ func (n *SQSNotify) flushDeleteQueue() error {
 	}
 	for q := n.deleteQueue; len(q) > 0; {
 		l := min(len(q), maxDelete)
-		_, err := n.queue.DeleteMessageBatch(q[0:l])
+		resp, err := n.queue.DeleteMessageBatch(q[0:l])
+		n.logDeleteMessageBatchError(resp, err)
 		if err != nil {
-			// TODO: log messages which not be deleted.
 			return err
 		}
 		q = q[l:]
@@ -151,6 +177,7 @@ type SQSMessage struct {
 	queue   *sqs.Queue
 }
 
+// IsEmpty checks MessageId is empty or not.
 func (m SQSMessage) IsEmpty() bool {
 	return m.Message.MessageId == ""
 }

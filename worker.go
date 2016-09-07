@@ -30,7 +30,7 @@ type workers struct {
 }
 
 func newWorkers(num int) *workers {
-	jobs := make(chan workerJob, 100)
+	jobs := make(chan workerJob, 1)
 	w := &workers{num, jobs, &sync.WaitGroup{}}
 
 	for i := 0; i < num; i++ {
@@ -45,7 +45,7 @@ func (w *workers) startWorker(num int, jobs chan workerJob) {
 		go func() {
 			switch <-sig {
 			case os.Interrupt:
-				j.Cmd.Process.Kill()
+				_ = j.Cmd.Process.Kill()
 			}
 		}()
 

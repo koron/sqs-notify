@@ -140,6 +140,7 @@ func (c *config) toApp() (*app, error) {
 		return nil, errors.New("unknown region:" + c.region)
 	}
 
+	sqsnotify.Logger = c.logger()
 	notify := sqsnotify.New(auth, region, c.queue)
 
 	jobs, err := c.newJobs()

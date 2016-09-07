@@ -39,7 +39,7 @@ func newRedisJobs(opt redisJobsOptions) (*redisJobsManager, error) {
 	}
 	// check connection.
 	if err := c.Ping().Err(); err != nil {
-		c.Close()
+		_ = c.Close()
 		return nil, err
 	}
 	return &redisJobsManager{
@@ -68,20 +68,22 @@ func (m *redisJobsManager) StartTry(id string) (jobState, error) {
 func (m *redisJobsManager) Fail(id string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	m.remove(id)
+	// all errors are logged in m.remove().
+	_, _ = m.remove(id)
 }
 
 func (m *redisJobsManager) Complete(id string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	m.update(id, jobCompleted)
+	// all errors are logged in m.update().
+	_, _ = m.update(id, jobCompleted)
 }
 
 func (m *redisJobsManager) Close() {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.client != nil {
-		m.client.Close()
+		_ = m.client.Close()
 		m.client = nil
 	}
 }

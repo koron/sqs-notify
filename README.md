@@ -62,6 +62,8 @@ OPTIONS:
         AWS Region for queue (default "us-east-1")
   -retrymax int
         Num of retry count (default 4)
+  -version
+        show version
   -worker int
         Num of workers (default 4)
 
