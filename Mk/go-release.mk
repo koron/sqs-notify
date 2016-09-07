@@ -25,6 +25,6 @@ release-all:
 	@$(MAKE) release RELEASE_OS=windows RELEASE_ARCH=386   SUFFIX_EXE=.exe
 	@$(MAKE) release RELEASE_OS=linux   RELEASE_ARCH=amd64
 	@$(MAKE) release RELEASE_OS=linux   RELEASE_ARCH=386
-	@$(MAKE) release RELEASE_OS=darwin  RELEASE_ARCH=amd64
+	#@$(MAKE) release RELEASE_OS=darwin  RELEASE_ARCH=amd64
 
 .PHONY: release release-all
