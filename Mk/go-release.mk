@@ -20,11 +20,21 @@ release-build:
 	go clean
 	GOOS=$(RELEASE_OS) GOARCH=$(RELEASE_ARCH) go build -ldflags='-X main.version=$(VERSION) -X main.revision=$(REVISION)'
 
-release-all:
+release-all: release-windows-amd64 release-windows-386 release-linux-amd64 release-linux-386 release-darwin-amd64
+
+release-windows-amd64:
 	@$(MAKE) release RELEASE_OS=windows RELEASE_ARCH=amd64 SUFFIX_EXE=.exe
+
+release-windows-386:
 	@$(MAKE) release RELEASE_OS=windows RELEASE_ARCH=386   SUFFIX_EXE=.exe
+
+release-linux-amd64:
 	@$(MAKE) release RELEASE_OS=linux   RELEASE_ARCH=amd64
+
+release-linux-386:
 	@$(MAKE) release RELEASE_OS=linux   RELEASE_ARCH=386
+
+release-darwin-amd64:
 	#@$(MAKE) release RELEASE_OS=darwin  RELEASE_ARCH=amd64
 
-.PHONY: release release-all
+.PHONY: release release-all release-windows-amd64 release-windows-386 release-linux-amd64 release-linux-386 release-darwin-amd64
