@@ -21,7 +21,7 @@ import (
 const progname = "sqs-notify"
 
 var (
-	version  = "1.5.1"
+	version  = "1.5.2"
 	revision = ""
 )
 
@@ -120,7 +120,7 @@ func (a *app) digest(s string) string {
 
 func (a *app) messageID(m *sqsnotify.SQSMessage) string {
 	if a.digestID {
-		return a.digest(*m.Body())
+		return m.Message.MD5OfBody;
 	}
 	return m.ID()
 }

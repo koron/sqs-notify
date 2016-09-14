@@ -1,5 +1,7 @@
 PROJECT = sqs-notify
 VERSION = v1.5.1
+RELEASE_TARGETS = release-windows-amd64 release-windows-386 release-linux-amd64 release-linux-386
+
 
 default: test
 
