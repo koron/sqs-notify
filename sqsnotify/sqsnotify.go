@@ -119,11 +119,11 @@ func (n *SQSNotify) ReserveDelete(m *SQSMessage) {
 }
 
 type deleteFault struct {
-	ID string
+	ID   string
 	Code string
 }
 
-func (n*SQSNotify) logDeleteMessageBatchError(resp *sqs.DeleteMessageBatchResponse, err error) {
+func (n *SQSNotify) logDeleteMessageBatchError(resp *sqs.DeleteMessageBatchResponse, err error) {
 	var faults []deleteFault
 	for _, r := range resp.DeleteMessageBatchResult {
 		if !r.SenderFault {
@@ -166,6 +166,7 @@ func (n *SQSNotify) Name() string {
 // Stop terminates listen loop.
 func (n *SQSNotify) Stop() {
 	n.running = false
+	n.flushDeleteQueue()
 }
 
 // SQSMessage represent a SQS message.

@@ -1,5 +1,5 @@
 PROJECT = sqs-notify
-VERSION = v1.5.2
+VERSION = v1.5.3
 RELEASE_TARGETS = release-windows-amd64 release-windows-386 release-linux-amd64 release-linux-386
 
 
@@ -31,6 +31,9 @@ report:
 	@echo ""
 	-golint ./...
 
+tags:
+	ctags -R .
+
 -include Mk/*.mk
 
-.PHONY: test test-full lint cyclo report
+.PHONY: test test-full lint cyclo report tags

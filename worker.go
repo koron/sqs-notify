@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"os/exec"
-	"os/signal"
 	"sync"
 	"syscall"
 )
@@ -27,11 +26,17 @@ type workers struct {
 	num  int
 	jobs chan workerJob
 	wait *sync.WaitGroup
+	cmds []*exec.Cmd
 }
 
 func newWorkers(num int) *workers {
 	jobs := make(chan workerJob, 1)
-	w := &workers{num, jobs, &sync.WaitGroup{}}
+	w := &workers{
+		num:  num,
+		jobs: jobs,
+		wait: &sync.WaitGroup{},
+		cmds: make([]*exec.Cmd, num),
+	}
 
 	for i := 0; i < num; i++ {
 		go w.startWorker(i, jobs)
@@ -41,19 +46,8 @@ func newWorkers(num int) *workers {
 
 func (w *workers) startWorker(num int, jobs chan workerJob) {
 	for j := range jobs {
-		sig := make(chan os.Signal, 1)
-		go func() {
-			switch <-sig {
-			case os.Interrupt:
-				_ = j.Cmd.Process.Kill()
-			}
-		}()
-
-		signal.Notify(sig, os.Interrupt)
+		w.cmds[num] = j.Cmd
 		err := j.Cmd.Run()
-		signal.Stop(sig)
-		close(sig)
-
 		res := workerResult{
 			Code:         getStatusCode(err),
 			Error:        err,
@@ -63,6 +57,7 @@ func (w *workers) startWorker(num int, jobs chan workerJob) {
 			j.Finish(res)
 		}
 		w.wait.Done()
+		w.cmds[num] = nil
 	}
 }
 
@@ -73,6 +68,15 @@ func (w *workers) Run(job workerJob) {
 
 func (w *workers) Wait() {
 	w.wait.Wait()
+}
+
+func (w *workers) Kill() {
+	for _, c := range w.cmds {
+		if c == nil || c.Process == nil {
+			continue
+		}
+		c.Process.Kill()
+	}
 }
 
 // Get status code.  It works for Windows and UNIX.
