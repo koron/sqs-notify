@@ -31,6 +31,9 @@ report:
 	@echo ""
 	-golint ./...
 
+tags:
+	ctags -R .
+
 -include Mk/*.mk
 
-.PHONY: test test-full lint cyclo report
+.PHONY: test test-full lint cyclo report tags

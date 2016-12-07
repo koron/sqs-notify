@@ -120,7 +120,7 @@ func (a *app) digest(s string) string {
 
 func (a *app) messageID(m *sqsnotify.SQSMessage) string {
 	if a.digestID {
-		return m.Message.MD5OfBody;
+		return m.Message.MD5OfBody
 	}
 	return m.ID()
 }
@@ -138,16 +138,15 @@ func (a *app) run() (err error) {
 	if err != nil {
 		return
 	}
+	defer a.notify.Stop()
 
 	// accept CTRL+C to terminate.
 	sig := make(chan os.Signal, 1)
 	go func() {
-	loop:
 		for {
-			switch <-sig {
-			case os.Interrupt:
-				a.notify.Stop()
-				break loop
+			s := <-sig
+			if s == os.Interrupt {
+				break
 			}
 		}
 		signal.Stop(sig)
@@ -157,6 +156,7 @@ func (a *app) run() (err error) {
 	signal.Notify(sig, os.Interrupt)
 
 	a.w = newWorkers(a.worker)
+	defer a.waitWorkers()
 
 	// Receive *sqsnotify.SQSMessage via channel.
 	retryCount := 0
@@ -204,6 +204,10 @@ func (a *app) run() (err error) {
 	}
 
 	return
+}
+
+func (a *app) waitWorkers() {
+	a.w.Wait()
 }
 
 func (a *app) execCmd(m *sqsnotify.SQSMessage, jid, body string) error {
