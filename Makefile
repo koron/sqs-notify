@@ -1,5 +1,5 @@
 PROJECT = sqs-notify
-VERSION = v1.5.2
+VERSION = v1.5.3
 RELEASE_TARGETS = release-windows-amd64 release-windows-386 release-linux-amd64 release-linux-386
 
 
