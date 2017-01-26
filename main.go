@@ -15,13 +15,14 @@ import (
 	"time"
 
 	"github.com/goamz/goamz/aws"
+	"github.com/goamz/goamz/sqs"
 	"github.com/koron/sqs-notify/sqsnotify"
 )
 
 const progname = "sqs-notify"
 
 var (
-	version  = "1.5.2"
+	version  = "1.5.4"
 	revision = ""
 )
 
@@ -110,6 +111,28 @@ func (a *app) logNg(m string, err error) {
 		a.notify.Name(), m, err)
 }
 
+func (a *app) logAbort(err error) {
+	s := a.errorSQS(err)
+	a.log("abort:", s)
+	log.Println("sqs-notify (abort):", s)
+}
+
+func (a *app) logRetry(err error) {
+	s := a.errorSQS(err)
+	a.log("retry:", s)
+	log.Println("sqs-notify (retry):", s)
+}
+
+func (a *app) errorSQS(err error) string {
+	switch err := err.(type) {
+	case *sqs.Error:
+		return fmt.Sprintf("%s (Code:%s, RequestId:%s)",
+			err.Message, err.Code, err.RequestId)
+	default:
+		return err.Error()
+	}
+}
+
 func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
 	a.notify.ReserveDelete(m)
 }
@@ -163,12 +186,10 @@ func (a *app) run() (err error) {
 	for m := range c {
 		if m.Error != nil {
 			if retryCount >= a.retryMax {
-				a.log("abort:", m.Error)
-				log.Println("sqs-notify (abort):", m.Error)
+				a.logAbort(m.Error)
 				return errors.New("over retry: " + strconv.Itoa(retryCount))
 			}
-			a.log("retry:", m.Error)
-			log.Println("sqs-notify (retry):", m.Error)
+			a.logRetry(m.Error)
 			retryCount++
 			// sleep before retry.
 			time.Sleep(retryDuration(retryCount))

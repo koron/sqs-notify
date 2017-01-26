@@ -11,6 +11,14 @@ as STDIN to the command.
 
 ## Installation
 
+### Pre built binaries
+
+Please check below URL for pre built binaries:
+
+<https://github.com/koron/sqs-notify/releases/latest>
+
+### Build by yourself
+
 ```
 $ go get github.com/koron/sqs-notify
 ```
