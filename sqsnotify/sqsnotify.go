@@ -2,6 +2,7 @@ package sqsnotify
 
 import (
 	"container/list"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"sync"
@@ -39,6 +40,11 @@ type SQSNotify struct {
 	dql   sync.Mutex
 	dqID  *list.List
 	dqMsg map[string]sqs.Message
+
+	// FailMax is limit for continuous errors.
+	FailMax int
+
+	failCnt int
 }
 
 // New creates and returns a SQSNotify instance.
@@ -155,6 +161,22 @@ func (n *SQSNotify) logDeleteMessageBatchError(resp *sqs.DeleteMessageBatchRespo
 }
 
 func (n *SQSNotify) flushDeleteQueue() error {
+	err := n.flushDeleteQueue0()
+	if err == nil {
+		n.failCnt = 0
+		return nil
+	}
+	if n.FailMax > 0 {
+		n.failCnt++
+		if n.failCnt >= n.failCnt {
+			// TODO: better failure propagation. (github#19)
+			panic(fmt.Sprintf("delete fails last %d times", n.failCnt))
+		}
+	}
+	return err
+}
+
+func (n *SQSNotify) flushDeleteQueue0() error {
 	n.dql.Lock()
 	defer n.dql.Unlock()
 	for n.dqID.Len() > 0 {
@@ -186,7 +208,7 @@ func (n *SQSNotify) Name() string {
 // Stop terminates listen loop.
 func (n *SQSNotify) Stop() {
 	n.running = false
-	n.flushDeleteQueue()
+	_ = n.flushDeleteQueue0()
 }
 
 // SQSMessage represent a SQS message.
