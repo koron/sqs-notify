@@ -1,6 +1,8 @@
 package sqsnotify
 
 import (
+	"container/list"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"sync"
@@ -34,8 +36,15 @@ type SQSNotify struct {
 
 	running bool
 
-	deleteQueue []sqs.Message
-	dql         sync.Mutex
+	// for delete queue
+	dql   sync.Mutex
+	dqID  *list.List
+	dqMsg map[string]sqs.Message
+
+	// FailMax is limit for continuous errors.
+	FailMax int
+
+	failCnt int
 }
 
 // New creates and returns a SQSNotify instance.
@@ -56,7 +65,8 @@ func (n *SQSNotify) Open() (err error) {
 	if err != nil {
 		return err
 	}
-	n.deleteQueue = make([]sqs.Message, 0, maxDelete)
+	n.dqID = list.New()
+	n.dqMsg = make(map[string]sqs.Message)
 	return nil
 }
 
@@ -103,17 +113,28 @@ func (n *SQSNotify) unique(list []sqs.Message) []sqs.Message {
 	return uniq
 }
 
-// ReserveDelete reserves to delete message.
-func (n *SQSNotify) ReserveDelete(m *SQSMessage) {
+func (n *SQSNotify) addDeleteQueue(m *SQSMessage) {
 	if m.IsEmpty() || m.deleted {
 		return
 	}
+	id := m.Message.MessageId
 	n.dql.Lock()
-	n.deleteQueue = append(n.deleteQueue, m.Message)
+	defer n.dql.Unlock()
+	if _, ok := n.dqMsg[id]; ok {
+		// update ReceiptHandle (github#19)
+		n.dqMsg[id] = m.Message
+		return
+	}
+	n.dqMsg[id] = m.Message
+	n.dqID.PushBack(id)
 	m.deleted = true
-	n.dql.Unlock()
-	// flush to delete ASAP when 10 messages are reserved.
-	if len(n.deleteQueue) >= maxDelete {
+}
+
+// ReserveDelete reserves to delete message.
+func (n *SQSNotify) ReserveDelete(m *SQSMessage) {
+	n.addDeleteQueue(m)
+	// flush to delete ASAP when the queue beyond max delete messages.
+	if n.dqID.Len() >= maxDelete {
 		_ = n.flushDeleteQueue()
 	}
 }
@@ -140,21 +161,42 @@ func (n *SQSNotify) logDeleteMessageBatchError(resp *sqs.DeleteMessageBatchRespo
 }
 
 func (n *SQSNotify) flushDeleteQueue() error {
-	n.dql.Lock()
-	defer n.dql.Unlock()
-	if len(n.deleteQueue) == 0 {
+	err := n.flushDeleteQueue0()
+	if err == nil {
+		n.failCnt = 0
 		return nil
 	}
-	for q := n.deleteQueue; len(q) > 0; {
-		l := min(len(q), maxDelete)
-		resp, err := n.queue.DeleteMessageBatch(q[0:l])
+	if n.FailMax > 0 {
+		n.failCnt++
+		if n.failCnt >= n.failCnt {
+			// TODO: better failure propagation. (github#19)
+			panic(fmt.Sprintf("delete fails last %d times", n.failCnt))
+		}
+	}
+	return err
+}
+
+func (n *SQSNotify) flushDeleteQueue0() error {
+	n.dql.Lock()
+	defer n.dql.Unlock()
+	for n.dqID.Len() > 0 {
+		msgs := make([]sqs.Message, 0, maxDelete)
+		el := n.dqID.Front()
+		for el != nil && len(msgs) < maxDelete {
+			id := el.Value.(string)
+			el = el.Next()
+			msgs = append(msgs, n.dqMsg[id])
+		}
+		resp, err := n.queue.DeleteMessageBatch(msgs)
 		n.logDeleteMessageBatchError(resp, err)
 		if err != nil {
 			return err
 		}
-		q = q[l:]
+		for _, m := range msgs {
+			delete(n.dqMsg, m.MessageId)
+			n.dqID.Remove(n.dqID.Front())
+		}
 	}
-	n.deleteQueue = n.deleteQueue[:0]
 	return nil
 }
 
@@ -166,7 +208,7 @@ func (n *SQSNotify) Name() string {
 // Stop terminates listen loop.
 func (n *SQSNotify) Stop() {
 	n.running = false
-	n.flushDeleteQueue()
+	_ = n.flushDeleteQueue0()
 }
 
 // SQSMessage represent a SQS message.

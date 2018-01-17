@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/md5"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,7 +21,7 @@ import (
 const progname = "sqs-notify"
 
 var (
-	version  = "1.5.4"
+	version  = "1.5.5"
 	revision = ""
 )
 
@@ -135,10 +134,6 @@ func (a *app) errorSQS(err error) string {
 
 func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
 	a.notify.ReserveDelete(m)
-}
-
-func (a *app) digest(s string) string {
-	return fmt.Sprintf("%x", md5.Sum([]byte(s)))
 }
 
 func (a *app) messageID(m *sqsnotify.SQSMessage) string {

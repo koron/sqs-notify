@@ -142,6 +142,8 @@ func (c *config) toApp() (*app, error) {
 
 	sqsnotify.Logger = c.logger()
 	notify := sqsnotify.New(auth, region, c.queue)
+	// TODO: should another option be used? (github#19)
+	notify.FailMax = c.retryMax
 
 	jobs, err := c.newJobs()
 	if err != nil {
