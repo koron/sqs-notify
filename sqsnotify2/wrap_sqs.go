@@ -1,6 +1,8 @@
 package sqsnotify2
 
 import (
+	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
@@ -25,4 +27,26 @@ func receiveMessages(api sqsiface.SQSAPI, queueUrl *string, max int64) ([]*sqs.M
 		return nil, err
 	}
 	return out.Messages, nil
+}
+
+type deleteFailure struct {
+	failed []*sqs.BatchResultErrorEntry
+}
+
+func (f *deleteFailure) Error() string {
+	return fmt.Sprintf("failed to delete %d messages", len(f.failed))
+}
+
+func deleteMessages(api sqsiface.SQSAPI, queueUrl *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
+	out, err := api.DeleteMessageBatch(&sqs.DeleteMessageBatchInput{
+		QueueUrl: queueUrl,
+		Entries:  entries,
+	})
+	if err != nil {
+		return err
+	}
+	if len(out.Failed) > 0 {
+		return &deleteFailure{failed: out.Failed}
+	}
+	return nil
 }
