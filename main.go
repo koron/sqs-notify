@@ -21,7 +21,7 @@ import (
 const progname = "sqs-notify"
 
 var (
-	version  = "1.5.5"
+	version  = "1.5.6"
 	revision = ""
 )
 
@@ -33,7 +33,6 @@ type app struct {
 	nowait        bool
 	ignoreFailure bool
 	messageCount  int
-	digestID      bool
 	retryMax      int
 	jobs          jobs
 	notify        *sqsnotify.SQSNotify
@@ -137,9 +136,6 @@ func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
 }
 
 func (a *app) messageID(m *sqsnotify.SQSMessage) string {
-	if a.digestID {
-		return m.Message.MD5OfBody
-	}
 	return m.ID()
 }
 
