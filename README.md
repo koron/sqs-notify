@@ -48,8 +48,6 @@ Usage: sqs-notify [OPTIONS] {queue name} {command and args...}
 OPTIONS:
   -daemon
         run as a daemon
-  -digest-id
-        Use digest as message identifier
   -ignorefailure
         Don't care command failures
   -logfile string
