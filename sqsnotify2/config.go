@@ -1,6 +1,7 @@
 package sqsnotify2
 
 import (
+	"log"
 	"runtime"
 )
 
@@ -12,6 +13,8 @@ type Config struct {
 	Workers    int
 	CmdName    string
 	CmdArgs    []string
+
+	Logger *log.Logger
 }
 
 // NewConfig creates a new Config object.

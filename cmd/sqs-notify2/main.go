@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	valid "github.com/koron/go-valid"
+	"github.com/koron/hupwriter"
 	"github.com/koron/sqs-notify/sqsnotify2"
 )
 
@@ -19,6 +20,8 @@ func main2() error {
 		cfg     = sqsnotify2.NewConfig()
 		version bool
 		daemon  bool
+		logfile string
+		pidfile string
 	)
 
 	flag.StringVar(&cfg.Profile, "profile", "", "AWS profile name")
@@ -28,6 +31,8 @@ func main2() error {
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
 	flag.BoolVar(&version, "version", false, "show version")
 	flag.BoolVar(&daemon, "daemon", false, "run as a daemon")
+	flag.StringVar(&logfile, "logfile", "", "log file path")
+	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
 	if err := valid.Parse(flag.CommandLine, os.Args[1:]); err != nil {
 		return err
 	}
@@ -43,6 +48,19 @@ func main2() error {
 	args := flag.Args()
 	cfg.CmdName = args[0]
 	cfg.CmdArgs = args[1:]
+
+	// Setup logger.
+	// FIXME: test logging features.
+	if pidfile != "" && logfile == "" {
+		return errors.New("pidfile option requires logfile option")
+	}
+	if logfile != "" {
+		if logfile == "-" {
+			cfg.Logger = log.New(os.Stdout, "", log.LstdFlags)
+		} else {
+			cfg.Logger = log.New(hupwriter.New(logfile, pidfile), "", 0)
+		}
+	}
 
 	if daemon {
 		makeDaemon()

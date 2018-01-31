@@ -3,6 +3,7 @@ package sqsnotify2
 import (
 	"context"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -16,6 +17,8 @@ import (
 )
 
 const maxMsg = 10
+
+var discardLog = log.New(ioutil.Discard, "", 0)
 
 // SQSNotify provides SQS consumer and job manager.
 type SQSNotify struct {
@@ -32,6 +35,13 @@ func New(cfg *Config) *SQSNotify {
 	return &SQSNotify{
 		Config: *cfg,
 	}
+}
+
+func (sn *SQSNotify) log() *log.Logger {
+	if sn.Config.Logger == nil {
+		return discardLog
+	}
+	return sn.Config.Logger
 }
 
 // Run runs SQS notification service.
