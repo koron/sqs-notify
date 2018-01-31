@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	valid "github.com/koron/go-valid"
 	"github.com/koron/sqs-notify/sqsnotify2"
 )
@@ -46,13 +48,40 @@ func main2() error {
 		makeDaemon()
 	}
 
-	sn := sqsnotify2.New(cfg)
-	err := sn.Run(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	sig := make(chan os.Signal, 1)
+	go func() {
+		for {
+			s := <-sig
+			if s == os.Interrupt {
+				cancel()
+				signal.Stop(sig)
+				close(sig)
+				return
+			}
+		}
+	}()
+	signal.Notify(sig, os.Interrupt)
+
+	err := sqsnotify2.New(cfg).Run(ctx)
 	if err != nil {
+		if isCancel(err) {
+			return nil
+		}
 		return err
 	}
 
 	return nil
+}
+
+func isCancel(err error) bool {
+	if err2, ok := err.(awserr.Error); ok {
+		err = err2.OrigErr()
+	}
+	if err == context.Canceled {
+		return true
+	}
+	return false
 }
 
 func main() {

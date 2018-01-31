@@ -72,7 +72,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 	var round = 0
 	for {
 		// receive messages.
-		msgs, err := sn.receiveQ(api, qu, maxMsg)
+		msgs, err := sn.receiveQ(api, ctx, qu, maxMsg)
 		if err != nil {
 			return err
 		}
@@ -122,7 +122,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 				ReceiptHandle: r.msg.ReceiptHandle,
 			})
 		}
-		err = sn.deleteQ(api, qu, entries)
+		err = sn.deleteQ(api, ctx, qu, entries)
 		if err != nil {
 			return err
 		}
@@ -168,16 +168,16 @@ func (sn *SQSNotify) execCmd(ctx context.Context, m *sqs.Message) error {
 	return nil
 }
 
-func (sn *SQSNotify) receiveQ(api sqsiface.SQSAPI, queueUrl *string, max int64) ([]*sqs.Message, error) {
-	msgs, err := receiveMessages(api, queueUrl, maxMsg)
+func (sn *SQSNotify) receiveQ(api sqsiface.SQSAPI, ctx context.Context, queueUrl *string, max int64) ([]*sqs.Message, error) {
+	msgs, err := receiveMessages(api, ctx, queueUrl, maxMsg)
 	if err != nil {
 		return nil, err
 	}
 	return msgs, nil
 }
 
-func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, queueUrl *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
-	err := deleteMessages(api, queueUrl, entries)
+func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, ctx context.Context, queueUrl *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
+	err := deleteMessages(api, ctx, queueUrl, entries)
 	if err != nil {
 		if f, ok := err.(*deleteFailure); ok {
 			// TODO: retry or skip failed entries.

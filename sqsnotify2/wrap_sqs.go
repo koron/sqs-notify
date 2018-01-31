@@ -1,6 +1,7 @@
 package sqsnotify2
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -18,8 +19,8 @@ func getQueueUrl(api sqsiface.SQSAPI, queueName string) (*string, error) {
 	return out.QueueUrl, nil
 }
 
-func receiveMessages(api sqsiface.SQSAPI, queueUrl *string, max int64) ([]*sqs.Message, error) {
-	out, err := api.ReceiveMessage(&sqs.ReceiveMessageInput{
+func receiveMessages(api sqsiface.SQSAPI, ctx context.Context, queueUrl *string, max int64) ([]*sqs.Message, error) {
+	out, err := api.ReceiveMessageWithContext(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:            queueUrl,
 		MaxNumberOfMessages: &max,
 	})
@@ -37,8 +38,8 @@ func (f *deleteFailure) Error() string {
 	return fmt.Sprintf("failed to delete %d messages", len(f.failed))
 }
 
-func deleteMessages(api sqsiface.SQSAPI, queueUrl *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
-	out, err := api.DeleteMessageBatch(&sqs.DeleteMessageBatchInput{
+func deleteMessages(api sqsiface.SQSAPI, ctx context.Context, queueUrl *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
+	out, err := api.DeleteMessageBatchWithContext(ctx, &sqs.DeleteMessageBatchInput{
 		QueueUrl: queueUrl,
 		Entries:  entries,
 	})
