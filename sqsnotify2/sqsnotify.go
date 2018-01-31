@@ -19,24 +19,32 @@ const maxMsg = 10
 
 // SQSNotify provides SQS consumer and job manager.
 type SQSNotify struct {
-	Profile   string
-	Region    string
-	QueueName string
-	Workers   int
-	CmdName   string
-	CmdArgs   []string
-
-	l sync.Mutex
-
+	Config
+	l       sync.Mutex
 	results []*result
 }
 
-func (sn *SQSNotify) Run() error {
+// New creates a SQSNotify object with configuration.
+func New(cfg *Config) *SQSNotify {
+	if cfg == nil {
+		cfg = NewConfig()
+	}
+	return &SQSNotify{
+		Config: *cfg,
+	}
+}
+
+// Run runs SQS notification service.
+// ctx is not supported yet.
+func (sn *SQSNotify) Run(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	svc, err := sn.newSQS()
 	if err != nil {
 		return err
 	}
-	return sn.run(svc)
+	return sn.run(ctx, svc)
 }
 
 func (sn *SQSNotify) newSQS() (*sqs.SQS, error) {
@@ -50,44 +58,53 @@ func (sn *SQSNotify) newSQS() (*sqs.SQS, error) {
 	if sn.Region != "" {
 		cfg.WithRegion(sn.Region)
 	}
+	if sn.MaxRetries > 0 {
+		cfg.WithMaxRetries(sn.MaxRetries)
+	}
 	return sqs.New(s, cfg), nil
 }
 
-func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
+func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 	qu, err := getQueueUrl(api, sn.QueueName)
 	if err != nil {
 		return err
 	}
+	var round = 0
 	for {
 		// receive messages.
-		msgs, err := sn.receive(api, qu, maxMsg)
+		msgs, err := sn.receiveQ(api, qu, maxMsg)
 		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 
 		// run as commands
-		ctx := context.Background()
 		sem := sn.newWeighted()
 		var wg sync.WaitGroup
-		for _, m := range msgs {
+		for i, m := range msgs {
 			wg.Add(1)
-			go func(m *sqs.Message) {
+			go func(r, n int, m *sqs.Message) {
 				defer wg.Done()
 				err := sem.Acquire(ctx, 1)
 				if err != nil {
-					sn.addResult(&result{msg: m, err: err})
+					sn.addResult(&result{round: r, index: n, msg: m, err: err})
 					return
 				}
 				defer sem.Release(1)
 				err = sn.execCmd(ctx, m)
 				if err != nil {
-					sn.addResult(&result{msg: m, err: err})
+					sn.addResult(&result{round: r, index: n, msg: m, err: err})
 					return
 				}
-				sn.addResult(&result{msg: m})
-			}(m)
+				sn.addResult(&result{round: r, index: n, msg: m})
+			}(round, i, m)
 		}
 		wg.Wait()
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 
 		// delete messages
 		var entries []*sqs.DeleteMessageBatchRequestEntry
@@ -100,11 +117,15 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 				ReceiptHandle: r.msg.ReceiptHandle,
 			})
 		}
-		err = sn.delete(api, qu, entries)
+		err = sn.deleteQ(api, qu, entries)
 		if err != nil {
 			return err
 		}
 		sn.clearResults()
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		round++
 	}
 }
 
@@ -142,8 +163,7 @@ func (sn *SQSNotify) execCmd(ctx context.Context, m *sqs.Message) error {
 	return nil
 }
 
-func (sn *SQSNotify) receive(api sqsiface.SQSAPI, queueUrl *string, max int64) ([]*sqs.Message, error) {
-	// TODO: retry n times if failed.
+func (sn *SQSNotify) receiveQ(api sqsiface.SQSAPI, queueUrl *string, max int64) ([]*sqs.Message, error) {
 	msgs, err := receiveMessages(api, queueUrl, maxMsg)
 	if err != nil {
 		return nil, err
@@ -151,11 +171,15 @@ func (sn *SQSNotify) receive(api sqsiface.SQSAPI, queueUrl *string, max int64) (
 	return msgs, nil
 }
 
-func (sn *SQSNotify) delete(api sqsiface.SQSAPI, queueUrl *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
-	// TODO: retry n times if failed with rebuild entries which failed.
-	// TODO: ignore failed entires because of not exists already.
+func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, queueUrl *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
 	err := deleteMessages(api, queueUrl, entries)
 	if err != nil {
+		if f, ok := err.(*deleteFailure); ok {
+			// TODO: retry or skip failed entries.
+			// 1. "not exists" be skipped (ignored)
+			// 2. others are retried or logged
+			_ = f
+		}
 		return err
 	}
 	return nil
@@ -187,8 +211,10 @@ func (sn *SQSNotify) addResult(r *result) {
 }
 
 type result struct {
-	msg *sqs.Message
-	err error
+	round int
+	index int
+	msg   *sqs.Message
+	err   error
 }
 
 func (r *result) shouldRemove() bool {
