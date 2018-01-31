@@ -79,6 +79,11 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if len(msgs) == 0 {
+			log.Printf("round %d: pooling timed out, proceed next", round)
+			round++
+			continue
+		}
 
 		// run as commands
 		sem := sn.newWeighted()
