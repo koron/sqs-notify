@@ -27,6 +27,7 @@ func main2() error {
 	flag.StringVar(&cfg.Region, "region", "us-east-1", "AWS region")
 	flag.Var(valid.String(&cfg.QueueName, "").MustSet(), "queue", "SQS queue name")
 	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
+	flag.StringVar(&cfg.CacheName, "cache", cfg.CacheName, "cache name or connection URL")
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
 	flag.BoolVar(&cfg.IgnoreFailure, "ignore-failure", false, "delete a message even if the command fail")
 	flag.BoolVar(&version, "version", false, "show version")

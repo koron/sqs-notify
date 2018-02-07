@@ -11,6 +11,8 @@ type Config struct {
 	QueueName  string
 	MaxRetries int
 
+	CacheName string
+
 	Workers       int
 	IgnoreFailure bool
 	CmdName       string

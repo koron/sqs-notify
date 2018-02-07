@@ -24,8 +24,10 @@ var discardLog = log.New(ioutil.Discard, "", 0)
 // SQSNotify provides SQS consumer and job manager.
 type SQSNotify struct {
 	Config
+
 	l       sync.Mutex
 	results []*result
+	cache   cache
 }
 
 // New creates a SQSNotify object with configuration.
@@ -51,10 +53,17 @@ func (sn *SQSNotify) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	svc, err := sn.newSQS()
 	if err != nil {
 		return err
 	}
+	c, err := newCache(sn.CacheName)
+	if err != nil {
+		return err
+	}
+	sn.cache = c
+
 	return sn.run(ctx, svc)
 }
 
