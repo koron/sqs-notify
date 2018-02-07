@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+	"github.com/koron/sqs-notify/sqsnotify2/stage"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -99,22 +100,26 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		sem := sn.newWeighted()
 		var wg sync.WaitGroup
 		for i, m := range msgs {
+			res := &result{round: round, index: i, msg: m, stg: stage.Recv}
 			wg.Add(1)
-			go func(r, n int, m *sqs.Message) {
+			go func(r, n int, m *sqs.Message, res *result) {
 				defer wg.Done()
+				res.stg = stage.Lock
 				err := sem.Acquire(ctx, 1)
 				if err != nil {
-					sn.addResult(&result{round: r, index: n, msg: m, err: err})
+					sn.addResult(res.withErr(err))
 					return
 				}
 				defer sem.Release(1)
+				res.stg = stage.Exec
 				err = sn.execCmd(ctx, m)
 				if err != nil {
-					sn.addResult(&result{round: r, index: n, msg: m, err: err})
+					sn.addResult(res.withErr(err))
 					return
 				}
+				res.stg = stage.Done
 				sn.addResult(&result{round: r, index: n, msg: m})
-			}(round, i, m)
+			}(round, i, m, res)
 		}
 		wg.Wait()
 		if err := ctx.Err(); err != nil {
@@ -124,7 +129,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		// delete messages
 		var entries []*sqs.DeleteMessageBatchRequestEntry
 		for _, r := range sn.results {
-			if !r.shouldRemove() {
+			if !sn.shouldRemove(r) {
 				continue
 			}
 			entries = append(entries, &sqs.DeleteMessageBatchRequestEntry{
@@ -142,6 +147,18 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		}
 		round++
 	}
+}
+
+func (sn *SQSNotify) shouldRemove(r *result) bool {
+	if r.err == nil {
+		return true
+	}
+	if sn.IgnoreFailure && r.stg == stage.Exec {
+		sn.log().Printf("command failed but message is deleted: id=%s err=%s",
+			r.msg.MessageId, r.err)
+		return true
+	}
+	return false
 }
 
 // execCmd executes a command for a message, and returns its exit code.
@@ -229,10 +246,11 @@ type result struct {
 	round int
 	index int
 	msg   *sqs.Message
+	stg   stage.Stage
 	err   error
 }
 
-func (r *result) shouldRemove() bool {
-	// FIXME:
-	return r.err == nil
+func (r *result) withErr(err error) *result {
+	r.err = err
+	return r
 }

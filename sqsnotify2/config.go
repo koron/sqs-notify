@@ -10,9 +10,11 @@ type Config struct {
 	Region     string
 	QueueName  string
 	MaxRetries int
-	Workers    int
-	CmdName    string
-	CmdArgs    []string
+
+	Workers       int
+	IgnoreFailure bool
+	CmdName       string
+	CmdArgs       []string
 
 	Logger *log.Logger
 }

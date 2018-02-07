@@ -28,6 +28,7 @@ func main2() error {
 	flag.Var(valid.String(&cfg.QueueName, "").MustSet(), "queue", "SQS queue name")
 	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
+	flag.BoolVar(&cfg.IgnoreFailure, "ignore-failure", false, "delete a message even if the command fail")
 	flag.BoolVar(&version, "version", false, "show version")
 	flag.StringVar(&logfile, "logfile", "", "log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
