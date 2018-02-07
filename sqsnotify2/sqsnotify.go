@@ -87,9 +87,6 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		if err != nil {
 			return err
 		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
 		if len(msgs) == 0 {
 			sn.log().Printf("round %d polling timed out, proceed next", round)
 			round++
@@ -122,9 +119,6 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 			}(round, i, m, res)
 		}
 		wg.Wait()
-		if err := ctx.Err(); err != nil {
-			return err
-		}
 
 		// delete messages
 		var entries []*sqs.DeleteMessageBatchRequestEntry
@@ -142,9 +136,6 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 			return err
 		}
 		sn.clearResults()
-		if err := ctx.Err(); err != nil {
-			return err
-		}
 		round++
 	}
 }
