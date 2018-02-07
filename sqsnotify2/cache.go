@@ -20,9 +20,9 @@ var (
 )
 
 type cache interface {
-	Insert(ctx *context.Context, id string, stg stage.Stage) error
-	Update(ctx *context.Context, id string, stg stage.Stage) error
-	Delete(ctx *context.Context, id string) error
+	Insert(ctx context.Context, id string, stg stage.Stage) error
+	Update(ctx context.Context, id string, stg stage.Stage) error
+	Delete(ctx context.Context, id string) error
 }
 
 type memoryCache struct {
@@ -45,9 +45,14 @@ func newMemoryCache(capacity int) *memoryCache {
 	}
 }
 
-func (mc *memoryCache) Insert(_ *context.Context, id string, stg stage.Stage) error {
+func (mc *memoryCache) Insert(ctx context.Context, id string, stg stage.Stage) error {
+	err := ctx.Err()
+	if err != nil {
+		return err
+	}
 	mc.l.Lock()
 	defer mc.l.Unlock()
+
 	if stg == stage.None {
 		return nil
 	}
@@ -70,9 +75,14 @@ func (mc *memoryCache) Insert(_ *context.Context, id string, stg stage.Stage) er
 	return nil
 }
 
-func (mc *memoryCache) Update(_ *context.Context, id string, stg stage.Stage) error {
+func (mc *memoryCache) Update(ctx context.Context, id string, stg stage.Stage) error {
+	err := ctx.Err()
+	if err != nil {
+		return err
+	}
 	mc.l.Lock()
 	defer mc.l.Unlock()
+
 	if stg == stage.None {
 		return nil
 	}
@@ -87,9 +97,14 @@ func (mc *memoryCache) Update(_ *context.Context, id string, stg stage.Stage) er
 	return nil
 }
 
-func (mc *memoryCache) Delete(_ *context.Context, id string) error {
+func (mc *memoryCache) Delete(ctx context.Context, id string) error {
+	err := ctx.Err()
+	if err != nil {
+		return err
+	}
 	mc.l.Lock()
 	defer mc.l.Unlock()
+
 	if mc.c <= minCapacity {
 		return nil
 	}

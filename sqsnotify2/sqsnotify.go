@@ -107,6 +107,11 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		var wg sync.WaitGroup
 		for i, m := range msgs {
 			res := &result{round: round, index: i, msg: m, stg: stage.Recv}
+			err := sn.cache.Insert(ctx, *m.MessageId, stage.Recv)
+			if err != nil {
+				sn.addResult(res.withErr(err))
+				continue
+			}
 			wg.Add(1)
 			go func(r, n int, m *sqs.Message, res *result) {
 				defer wg.Done()
@@ -118,12 +123,22 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 				}
 				defer sem.Release(1)
 				res.stg = stage.Exec
+				err = sn.cache.Update(ctx, *m.MessageId, stage.Exec)
+				if err != nil {
+					sn.addResult(res.withErr(err))
+					return
+				}
 				err = sn.execCmd(ctx, m)
 				if err != nil {
 					sn.addResult(res.withErr(err))
 					return
 				}
 				res.stg = stage.Done
+				err = sn.cache.Update(ctx, *m.MessageId, stage.Done)
+				if err != nil {
+					sn.addResult(res.withErr(err))
+					return
+				}
 				sn.addResult(&result{round: r, index: n, msg: m})
 			}(round, i, m, res)
 		}
@@ -154,9 +169,10 @@ func (sn *SQSNotify) shouldRemove(r *result) bool {
 		return true
 	}
 	if sn.IgnoreFailure && r.stg == stage.Exec {
-		sn.log().Printf("command failed but message is deleted: id=%s err=%s", r.msg.MessageId, r.err)
+		sn.log().Printf("command failed but message is deleted: id=%s err=%s", *r.msg.MessageId, r.err)
 		return true
 	}
+	// TODO: check r.err and r.stg
 	return false
 }
 
@@ -217,7 +233,7 @@ func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, ctx context.Context, queueUrl 
 }
 
 func (sn *SQSNotify) handleCopyMessageFailure(err error, m *sqs.Message) {
-	sn.log().Printf("failed to pass message body: id=%s err=%s", m.MessageId, err)
+	sn.log().Printf("failed to pass message body: id=%s err=%s", *m.MessageId, err)
 }
 
 func (sn *SQSNotify) newWeighted() *semaphore.Weighted {
