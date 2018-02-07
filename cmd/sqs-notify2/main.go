@@ -19,7 +19,6 @@ func main2() error {
 	var (
 		cfg     = sqsnotify2.NewConfig()
 		version bool
-		daemon  bool
 		logfile string
 		pidfile string
 	)
@@ -30,7 +29,6 @@ func main2() error {
 	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
 	flag.BoolVar(&version, "version", false, "show version")
-	flag.BoolVar(&daemon, "daemon", false, "run as a daemon")
 	flag.StringVar(&logfile, "logfile", "", "log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
 	if err := valid.Parse(flag.CommandLine, os.Args[1:]); err != nil {
@@ -60,10 +58,6 @@ func main2() error {
 		} else {
 			cfg.Logger = log.New(hupwriter.New(logfile, pidfile), "", 0)
 		}
-	}
-
-	if daemon {
-		makeDaemon()
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
