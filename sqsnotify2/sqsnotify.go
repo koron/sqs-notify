@@ -91,7 +91,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 			return err
 		}
 		if len(msgs) == 0 {
-			log.Printf("round %d: pooling timed out, proceed next", round)
+			sn.log().Printf("round %d polling timed out, proceed next", round)
 			round++
 			continue
 		}
@@ -154,8 +154,7 @@ func (sn *SQSNotify) shouldRemove(r *result) bool {
 		return true
 	}
 	if sn.IgnoreFailure && r.stg == stage.Exec {
-		sn.log().Printf("command failed but message is deleted: id=%s err=%s",
-			r.msg.MessageId, r.err)
+		sn.log().Printf("command failed but message is deleted: id=%s err=%s", r.msg.MessageId, r.err)
 		return true
 	}
 	return false
@@ -218,8 +217,7 @@ func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, ctx context.Context, queueUrl 
 }
 
 func (sn *SQSNotify) handleCopyMessageFailure(err error, m *sqs.Message) {
-	// TODO: show more details
-	log.Printf("failed to copy message: %s", err)
+	sn.log().Printf("failed to pass message body: id=%s err=%s", m.MessageId, err)
 }
 
 func (sn *SQSNotify) newWeighted() *semaphore.Weighted {
