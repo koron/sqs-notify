@@ -12,6 +12,8 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify2/stage"
 )
 
+const minCapacity = maxMsg
+
 var (
 	errCacheFound    = errors.New("cache found")
 	errCacheNotFound = errors.New("cache not found")
@@ -49,7 +51,7 @@ func (mc *memoryCache) Insert(_ *context.Context, id string, stg stage.Stage) er
 	if stg == stage.None {
 		return nil
 	}
-	if mc.c <= 0 {
+	if mc.c <= minCapacity {
 		return nil
 	}
 	_, ok := mc.m[id]
@@ -74,7 +76,7 @@ func (mc *memoryCache) Update(_ *context.Context, id string, stg stage.Stage) er
 	if stg == stage.None {
 		return nil
 	}
-	if mc.c <= 0 {
+	if mc.c <= minCapacity {
 		return nil
 	}
 	v, ok := mc.m[id]
@@ -88,7 +90,7 @@ func (mc *memoryCache) Update(_ *context.Context, id string, stg stage.Stage) er
 func (mc *memoryCache) Delete(_ *context.Context, id string) error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
-	if mc.c <= 0 {
+	if mc.c <= minCapacity {
 		return nil
 	}
 	v, ok := mc.m[id]
