@@ -3,6 +3,7 @@ package sqsnotify2
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -11,9 +12,14 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify2/stage"
 )
 
+var (
+	errCacheFound    = errors.New("cache found")
+	errCacheNotFound = errors.New("cache not found")
+)
+
 type cache interface {
-	Put(ctx *context.Context, id string, stg stage.Stage) error
-	Get(ctx *context.Context, id string) (stage.Stage, error)
+	Insert(ctx *context.Context, id string, stg stage.Stage) error
+	Update(ctx *context.Context, id string, stg stage.Stage) error
 	Delete(ctx *context.Context, id string) error
 }
 
@@ -37,15 +43,18 @@ func newMemoryCache(capacity int) *memoryCache {
 	}
 }
 
-func (mc *memoryCache) Put(_ *context.Context, id string, stg stage.Stage) error {
+func (mc *memoryCache) Insert(_ *context.Context, id string, stg stage.Stage) error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
-
+	if stg == stage.None {
+		return nil
+	}
 	if mc.c <= 0 {
 		return nil
 	}
-	if stg == stage.None {
-		return nil
+	_, ok := mc.m[id]
+	if ok {
+		return errCacheFound
 	}
 	// remove old entries.
 	for mc.k.Len() >= mc.c {
@@ -59,24 +68,26 @@ func (mc *memoryCache) Put(_ *context.Context, id string, stg stage.Stage) error
 	return nil
 }
 
-func (mc *memoryCache) Get(_ *context.Context, id string) (stage.Stage, error) {
+func (mc *memoryCache) Update(_ *context.Context, id string, stg stage.Stage) error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
-
+	if stg == stage.None {
+		return nil
+	}
 	if mc.c <= 0 {
-		return stage.None, nil
+		return nil
 	}
 	v, ok := mc.m[id]
 	if !ok {
-		return stage.None, nil
+		return errCacheNotFound
 	}
-	return v.stg, nil
+	v.stg = stg
+	return nil
 }
 
 func (mc *memoryCache) Delete(_ *context.Context, id string) error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
-
 	if mc.c <= 0 {
 		return nil
 	}
