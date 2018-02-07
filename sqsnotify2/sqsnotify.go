@@ -106,8 +106,8 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		sem := sn.newWeighted()
 		var wg sync.WaitGroup
 		for i, m := range msgs {
-			res := &result{round: round, index: i, msg: m, stg: stage.Recv}
-			err := sn.cache.Insert(ctx, *m.MessageId, stage.Recv)
+			res := &result{round: round, index: i, msg: m}
+			err := sn.cacheInsert(ctx, res, stage.Recv)
 			if err != nil {
 				sn.addResult(res.withErr(err))
 				continue
@@ -123,7 +123,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 				}
 				defer sem.Release(1)
 				res.stg = stage.Exec
-				err = sn.cache.Update(ctx, *m.MessageId, stage.Exec)
+				err = sn.cacheUpdate(ctx, res, stage.Exec)
 				if err != nil {
 					sn.addResult(res.withErr(err))
 					return
@@ -134,7 +134,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 					return
 				}
 				res.stg = stage.Done
-				err = sn.cache.Update(ctx, *m.MessageId, stage.Done)
+				err = sn.cacheUpdate(ctx, res, stage.Done)
 				if err != nil {
 					sn.addResult(res.withErr(err))
 					return
@@ -164,6 +164,25 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 	}
 }
 
+func (sn *SQSNotify) cacheInsert(ctx context.Context, r *result, stg stage.Stage) error {
+	r.stg = stg
+	err := sn.cache.Insert(ctx, *r.msg.MessageId, stg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sn *SQSNotify) cacheUpdate(ctx context.Context, r *result, stg stage.Stage) error {
+	r.stg = stg
+	err := sn.cache.Update(ctx, *r.msg.MessageId, stg)
+	if err != nil {
+		// FIXME: consider errCacheNotFound
+		return err
+	}
+	return nil
+}
+
 func (sn *SQSNotify) shouldRemove(r *result) bool {
 	if r.err == nil {
 		return true
@@ -172,7 +191,7 @@ func (sn *SQSNotify) shouldRemove(r *result) bool {
 		sn.log().Printf("command failed but message is deleted: id=%s err=%s", *r.msg.MessageId, r.err)
 		return true
 	}
-	// TODO: check r.err and r.stg
+	// FIXME: check r.err and r.stg
 	return false
 }
 
