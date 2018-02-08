@@ -20,9 +20,9 @@ var (
 )
 
 type cache interface {
-	Insert(ctx context.Context, id string, stg stage.Stage) error
-	Update(ctx context.Context, id string, stg stage.Stage) error
-	Delete(ctx context.Context, id string) error
+	Insert(id string, stg stage.Stage) error
+	Update(id string, stg stage.Stage) error
+	Delete(id string) error
 }
 
 type memoryCache struct {
@@ -45,11 +45,7 @@ func newMemoryCache(capacity int) *memoryCache {
 	}
 }
 
-func (mc *memoryCache) Insert(ctx context.Context, id string, stg stage.Stage) error {
-	err := ctx.Err()
-	if err != nil {
-		return err
-	}
+func (mc *memoryCache) Insert(id string, stg stage.Stage) error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
@@ -75,11 +71,7 @@ func (mc *memoryCache) Insert(ctx context.Context, id string, stg stage.Stage) e
 	return nil
 }
 
-func (mc *memoryCache) Update(ctx context.Context, id string, stg stage.Stage) error {
-	err := ctx.Err()
-	if err != nil {
-		return err
-	}
+func (mc *memoryCache) Update(id string, stg stage.Stage) error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
@@ -97,11 +89,7 @@ func (mc *memoryCache) Update(ctx context.Context, id string, stg stage.Stage) e
 	return nil
 }
 
-func (mc *memoryCache) Delete(ctx context.Context, id string) error {
-	err := ctx.Err()
-	if err != nil {
-		return err
-	}
+func (mc *memoryCache) Delete(id string) error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
@@ -117,7 +105,7 @@ func (mc *memoryCache) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func newCache(name string) (cache, error) {
+func newCache(ctx context.Context, name string) (cache, error) {
 	u, err := url.Parse(name)
 	if err != nil {
 		return nil, err
@@ -136,7 +124,7 @@ func newCache(name string) (cache, error) {
 		return newMemoryCache(capacity), nil
 
 	case "redis":
-		// TODO: implement me.
+		return newRedisCache(u, ctx)
 	}
 	return nil, fmt.Errorf("not supported cache: %s", name)
 }

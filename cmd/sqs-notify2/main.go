@@ -77,7 +77,7 @@ func main2() error {
 	}()
 	signal.Notify(sig, os.Interrupt)
 
-	err := sqsnotify2.New(cfg).Run(ctx)
+	err := sqsnotify2.New(ctx, cfg).Run()
 	if err != nil {
 		if isCancel(err) {
 			return nil
