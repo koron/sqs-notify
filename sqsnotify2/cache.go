@@ -52,7 +52,7 @@ func (mc *memoryCache) Insert(id string, stg stage.Stage) error {
 	if stg == stage.None {
 		return nil
 	}
-	if mc.c <= minCapacity {
+	if mc.c < minCapacity {
 		return nil
 	}
 	_, ok := mc.m[id]
@@ -78,7 +78,7 @@ func (mc *memoryCache) Update(id string, stg stage.Stage) error {
 	if stg == stage.None {
 		return nil
 	}
-	if mc.c <= minCapacity {
+	if mc.c < minCapacity {
 		return nil
 	}
 	v, ok := mc.m[id]
@@ -93,7 +93,7 @@ func (mc *memoryCache) Delete(id string) error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
-	if mc.c <= minCapacity {
+	if mc.c < minCapacity {
 		return nil
 	}
 	v, ok := mc.m[id]
@@ -124,6 +124,7 @@ func newCache(ctx context.Context, name string) (cache, error) {
 		return newMemoryCache(capacity), nil
 
 	case "redis":
+		// TODO: close redis cache correctly.
 		return newRedisCache(u, ctx)
 	}
 	return nil, fmt.Errorf("not supported cache: %s", name)

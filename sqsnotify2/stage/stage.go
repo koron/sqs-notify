@@ -9,3 +9,7 @@ const (
 	Exec
 	Done
 )
+
+func (stg Stage) MarshalBinary() ([]byte, error) {
+	return []byte{byte(stg)}, nil
+}
