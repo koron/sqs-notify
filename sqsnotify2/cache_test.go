@@ -52,7 +52,7 @@ func TestRedisCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse REDIS_URL: %v", err)
 	}
-	rc, err := newRedisCache(u, context.Background())
+	rc, err := newRedisCache(context.Background(), u)
 	if err != nil {
 		t.Fatalf("failed to create redisCache: %v", err)
 	}
