@@ -48,9 +48,26 @@ func main2() error {
 	flag.StringVar(&cfg.Region, "region", "us-east-1", "AWS region")
 	flag.Var(valid.String(&cfg.QueueName, "").MustSet(), "queue", "SQS queue name")
 	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
-	flag.StringVar(&cfg.CacheName, "cache", cfg.CacheName, "cache name or connection URL")
+
+	flag.StringVar(&cfg.CacheName, "cache", cfg.CacheName,
+		`cache name or connection URL
+ * memory://?capacity=1000
+ * redis://[{USER}:{PASS}@]{HOST}/[{DBNUM}]?[{OPTIONS}]
+
+   DBNUM: redis DB number (default 0)
+   OPTIONS:
+	* lifetime : lifetime of cachetime (ex. "10s", "2m", "3h")
+	* prefix   : prefix of keys
+
+   Example to connect the redis on localhost: "redis://:6379"`)
+
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
-	flag.Var(valid.String(&removePolicy, rpSucceed).OneOf(rpSucceed, rpIgnoreFailure, rpBeforeExecution), "remove-policy", "policy to delete messages")
+	flag.Var(valid.String(&removePolicy, "").
+		OneOf(rpSucceed, rpIgnoreFailure, rpBeforeExecution), "remove-policy",
+		`policy to remove messages from SQS
+ * succeed          : after execution, succeeded (default)
+ * ignore_failure   : after execution, ignore its result
+ * before_execution : before execution`)
 	flag.BoolVar(&version, "version", false, "show version")
 	flag.StringVar(&logfile, "logfile", "", "log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
