@@ -15,12 +15,33 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify2"
 )
 
+const (
+	rpSucceed         = "succeed"
+	rpIgnoreFailure   = "ignore_failure"
+	rpBeforeExecution = "before_execution"
+)
+
+func toRP(s string) sqsnotify2.RemovePolicy {
+	switch s {
+	default:
+		fallthrough
+	case rpSucceed:
+		return sqsnotify2.Succeed
+	case rpIgnoreFailure:
+		return sqsnotify2.IgnoreFailure
+	case rpBeforeExecution:
+		return sqsnotify2.BeforeExecution
+	}
+}
+
 func main2() error {
 	var (
 		cfg     = sqsnotify2.NewConfig()
 		version bool
 		logfile string
 		pidfile string
+
+		removePolicy string
 	)
 
 	flag.StringVar(&cfg.Profile, "profile", "", "AWS profile name")
@@ -29,7 +50,7 @@ func main2() error {
 	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
 	flag.StringVar(&cfg.CacheName, "cache", cfg.CacheName, "cache name or connection URL")
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
-	flag.BoolVar(&cfg.IgnoreFailure, "ignore-failure", false, "delete a message even if the command fail")
+	flag.Var(valid.String(&removePolicy, rpSucceed).OneOf(rpSucceed, rpIgnoreFailure, rpBeforeExecution), "remove-policy", "policy to delete messages")
 	flag.BoolVar(&version, "version", false, "show version")
 	flag.StringVar(&logfile, "logfile", "", "log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
@@ -46,6 +67,7 @@ func main2() error {
 		return errors.New("need a notification command")
 	}
 	args := flag.Args()
+	cfg.RemovePolicy = toRP(removePolicy)
 	cfg.CmdName = args[0]
 	cfg.CmdArgs = args[1:]
 

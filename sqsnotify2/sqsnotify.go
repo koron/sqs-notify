@@ -100,6 +100,21 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 			continue
 		}
 
+		// remove messsages first when RemovePolicy == BeforeExecution
+		if sn.RemovePolicy == BeforeExecution {
+			entries := make([]*sqs.DeleteMessageBatchRequestEntry, 0, len(msgs))
+			for _, m := range msgs {
+				entries = append(entries, &sqs.DeleteMessageBatchRequestEntry{
+					Id:            m.MessageId,
+					ReceiptHandle: m.ReceiptHandle,
+				})
+			}
+			err := sn.deleteQ(api, qu, entries)
+			if err != nil {
+				return err
+			}
+		}
+
 		// run as commands
 		sem := sn.newWeighted()
 		var wg sync.WaitGroup
@@ -145,7 +160,7 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 		// delete messages
 		var entries []*sqs.DeleteMessageBatchRequestEntry
 		for _, r := range sn.results {
-			if !sn.shouldRemove(r) {
+			if !sn.shouldRemoveAfter(r) {
 				continue
 			}
 			entries = append(entries, &sqs.DeleteMessageBatchRequestEntry{
@@ -181,16 +196,21 @@ func (sn *SQSNotify) cacheUpdate(r *result, stg stage.Stage) error {
 	return nil
 }
 
-func (sn *SQSNotify) shouldRemove(r *result) bool {
-	if r.err == nil {
-		return true
+func (sn *SQSNotify) shouldRemoveAfter(r *result) bool {
+	switch sn.RemovePolicy {
+	default:
+		fallthrough
+	case Succeed:
+		return r.err == nil
+	case IgnoreFailure:
+		if r.stg == stage.Exec {
+			sn.log().Printf("command failed but message is deleted: id=%s err=%s", *r.msg.MessageId, r.err)
+			return true
+		}
+		return r.err == nil
+	case BeforeExecution:
+		return false
 	}
-	if sn.IgnoreFailure && r.stg == stage.Exec {
-		sn.log().Printf("command failed but message is deleted: id=%s err=%s", *r.msg.MessageId, r.err)
-		return true
-	}
-	// FIXME: check r.err and r.stg
-	return false
 }
 
 // execCmd executes a command for a message, and returns its exit code.

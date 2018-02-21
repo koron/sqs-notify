@@ -5,6 +5,14 @@ import (
 	"runtime"
 )
 
+type RemovePolicy int
+
+const (
+	Succeed         RemovePolicy = 0
+	IgnoreFailure                = 1
+	BeforeExecution              = 2
+)
+
 type Config struct {
 	Profile    string
 	Region     string
@@ -14,7 +22,7 @@ type Config struct {
 	CacheName string
 
 	Workers       int
-	IgnoreFailure bool
+	RemovePolicy  RemovePolicy
 	CmdName       string
 	CmdArgs       []string
 
