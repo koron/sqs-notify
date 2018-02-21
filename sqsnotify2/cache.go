@@ -125,7 +125,7 @@ func newCache(ctx context.Context, name string) (cache, error) {
 
 	case "redis":
 		// TODO: close redis cache correctly.
-		return newRedisCache(u, ctx)
+		return newRedisCache(ctx, u)
 	}
 	return nil, fmt.Errorf("not supported cache: %s", name)
 }

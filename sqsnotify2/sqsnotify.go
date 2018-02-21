@@ -83,7 +83,7 @@ func (sn *SQSNotify) newSQS() (*sqs.SQS, error) {
 }
 
 func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
-	qu, err := getQueueUrl(api, sn.QueueName)
+	qu, err := getQueueURL(api, sn.QueueName)
 	if err != nil {
 		return err
 	}
@@ -247,16 +247,16 @@ func (sn *SQSNotify) execCmd(m *sqs.Message) error {
 	return nil
 }
 
-func (sn *SQSNotify) receiveQ(api sqsiface.SQSAPI, queueUrl *string, max int64) ([]*sqs.Message, error) {
-	msgs, err := receiveMessages(api, sn.ctx, queueUrl, maxMsg)
+func (sn *SQSNotify) receiveQ(api sqsiface.SQSAPI, queueURL *string, max int64) ([]*sqs.Message, error) {
+	msgs, err := receiveMessages(sn.ctx, api, queueURL, maxMsg)
 	if err != nil {
 		return nil, err
 	}
 	return msgs, nil
 }
 
-func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, queueUrl *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
-	err := deleteMessages(api, sn.ctx, queueUrl, entries)
+func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, queueURL *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
+	err := deleteMessages(sn.ctx, api, queueURL, entries)
 	if err != nil {
 		if f, ok := err.(*deleteFailure); ok {
 			// TODO: retry or skip failed entries.

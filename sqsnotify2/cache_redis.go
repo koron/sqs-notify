@@ -18,7 +18,7 @@ type redisCache struct {
 	lifetime time.Duration
 }
 
-func newRedisCache(u *url.URL, ctx context.Context) (*redisCache, error) {
+func newRedisCache(ctx context.Context, u *url.URL) (*redisCache, error) {
 	if u.Scheme != "redis" {
 		return nil, fmt.Errorf("unexpected scheme: %s", u.Scheme)
 	}
