@@ -256,7 +256,7 @@ It is an experimental for now.
 ### Installation and upgrade
 
 ```console
-go get -u github.com/koron/cmd/sqs-notify2
+$ go get -u github.com/koron/cmd/sqs-notify2
 ```
 
 ### Options for v2
