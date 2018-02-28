@@ -290,6 +290,8 @@ $ go get -u github.com/koron/cmd/sqs-notify2
     	 * succeed          : after execution, succeeded (default)
     	 * ignore_failure   : after execution, ignore its result
     	 * before_execution : before execution
+  -timeout duration
+    	timeout for command execution (default 0 - no timeout)
   -version
     	show version
   -workers int

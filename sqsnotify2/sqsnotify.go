@@ -215,7 +215,11 @@ func (sn *SQSNotify) shouldRemoveAfter(r *result) bool {
 
 // execCmd executes a command for a message, and returns its exit code.
 func (sn *SQSNotify) execCmd(m *sqs.Message) error {
-	cmd := exec.CommandContext(sn.ctx, sn.CmdName, sn.CmdArgs...)
+	ctx := sn.ctx
+	if sn.Timeout != 0 {
+		ctx, _ = context.WithTimeout(sn.ctx, sn.Timeout)
+	}
+	cmd := exec.CommandContext(ctx, sn.CmdName, sn.CmdArgs...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

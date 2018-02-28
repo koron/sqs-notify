@@ -62,6 +62,7 @@ func main2() error {
    Example to connect the redis on localhost: "redis://:6379"`)
 
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
+	flag.DurationVar(&cfg.Timeout, "timeout", 0, "timeout for command execution (default 0 - no timeout)")
 	flag.Var(valid.String(&removePolicy, "").
 		OneOf(rpSucceed, rpIgnoreFailure, rpBeforeExecution), "remove-policy",
 		`policy to remove messages from SQS
