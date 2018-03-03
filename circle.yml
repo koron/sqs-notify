@@ -1,9 +1,0 @@
-dependencies:
-  post:
-    - go version
-    - go env
-
-test:
-  post:
-    - make release-all
-    - mv tmp/*.tar.gz $CIRCLE_ARTIFACTS
