@@ -259,6 +259,13 @@ It is an experimental for now.
 $ go get -u github.com/koron/cmd/sqs-notify2
 ```
 
+### Environment variables for v2
+
+*   `AWS_SHARED_CREDENTIALS_FILE` - Shared credentials file path can be set to
+    instruct the SDK to use an alternate file for the shared credentials. If
+    not set the file will be loaded from $HOME/.aws/credentials on Linux/Unix
+    based systems, and %USERPROFILE%\.aws\credentials on Windows.
+
 ### Options for v2
 
 ```
