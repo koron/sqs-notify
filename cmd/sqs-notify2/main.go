@@ -63,7 +63,7 @@ func main2() error {
 
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
 	flag.DurationVar(&cfg.Timeout, "timeout", 0, "timeout for command execution (default 0 - no timeout)")
-	flag.Var(valid.String(&removePolicy, "").
+	flag.Var(valid.String(&removePolicy, rpSucceed).
 		OneOf(rpSucceed, rpIgnoreFailure, rpBeforeExecution), "remove-policy",
 		`policy to remove messages from SQS
  * succeed          : after execution, succeeded (default)
