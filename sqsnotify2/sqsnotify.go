@@ -158,23 +158,27 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 		wg.Wait()
 
 		// delete messages
-		var entries []*sqs.DeleteMessageBatchRequestEntry
-		for _, r := range sn.results {
-			if !sn.shouldRemoveAfter(r) {
-				continue
-			}
-			entries = append(entries, &sqs.DeleteMessageBatchRequestEntry{
-				Id:            r.msg.MessageId,
-				ReceiptHandle: r.msg.ReceiptHandle,
-			})
-		}
-		err = sn.deleteQ(api, qu, entries)
+		err = sn.deleteQ(api, qu, sn.deleteEntries())
 		if err != nil {
 			return err
 		}
 		sn.clearResults()
 		round++
 	}
+}
+
+func (sn *SQSNotify) deleteEntries() []*sqs.DeleteMessageBatchRequestEntry {
+	var entries []*sqs.DeleteMessageBatchRequestEntry
+	for _, r := range sn.results {
+		if !sn.shouldRemoveAfter(r) {
+			continue
+		}
+		entries = append(entries, &sqs.DeleteMessageBatchRequestEntry{
+			Id:            r.msg.MessageId,
+			ReceiptHandle: r.msg.ReceiptHandle,
+		})
+	}
+	return entries
 }
 
 func (sn *SQSNotify) cacheInsert(r *result, stg stage.Stage) error {
@@ -217,7 +221,9 @@ func (sn *SQSNotify) shouldRemoveAfter(r *result) bool {
 func (sn *SQSNotify) execCmd(m *sqs.Message) error {
 	ctx := sn.ctx
 	if sn.Timeout != 0 {
-		ctx, _ = context.WithTimeout(sn.ctx, sn.Timeout)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(sn.ctx, sn.Timeout)
+		defer cancel()
 	}
 	cmd := exec.CommandContext(ctx, sn.CmdName, sn.CmdArgs...)
 
@@ -260,6 +266,9 @@ func (sn *SQSNotify) receiveQ(api sqsiface.SQSAPI, queueURL *string, max int64) 
 }
 
 func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, queueURL *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
 	err := deleteMessages(sn.ctx, api, queueURL, entries)
 	if err != nil {
 		if f, ok := err.(*deleteFailure); ok {

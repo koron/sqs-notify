@@ -21,7 +21,7 @@ func loadCredFile() (ini.File, error) {
 	return ini.LoadFile(credFile)
 }
 
-// GetAuth returns aws.Auth from credentials or envrionment variables.
+// GetAuth returns aws.Auth from credentials or environment variables.
 func GetAuth(name string) (aws.Auth, error) {
 	f, err := loadCredFile()
 	if err != nil {
