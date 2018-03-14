@@ -1,5 +1,6 @@
 # SQS notify
 
+[![CircleCI](https://circleci.com/gh/koron/sqs-notify.svg?style=svg)](https://circleci.com/gh/koron/sqs-notify)
 [![Go Report Card](https://goreportcard.com/badge/github.com/koron/sqs-notify)](https://goreportcard.com/report/github.com/koron/sqs-notify)
 
 Listen a SQS queue, execute a command when received.  A message body is passed
@@ -8,7 +9,7 @@ as STDIN to the command.
 (in Japanese) SQS を監視しメッセージを取得したら指定のコマンドを実行します。
 メッセージの内容はコマンドの標準入力として渡します。
 
-See [sqs-notify2](#sqs-notify2) for new experimental version.
+See [sqs-notify2](#sqs-notify2) for new version.
 
 ## Installation
 
