@@ -8,6 +8,7 @@ as STDIN to the command.
 (in Japanese) SQS を監視しメッセージを取得したら指定のコマンドを実行します。
 メッセージの内容はコマンドの標準入力として渡します。
 
+See [sqs-notify2](#sqs-notify2) for new experimental version.
 
 ## Installation
 
@@ -246,6 +247,63 @@ maxRetries |NO          |default: no retry
 
 This mode implies `-ignorefailure` option, excludes `-nowait` option, and
 requires one of `-msgcache` or `-redis` option.
+
+## sqs-notify2
+
+New version of sqs-noitfy (v2).
+It is an experimental for now.
+
+### Installation and upgrade
+
+```console
+$ go get -u github.com/koron/cmd/sqs-notify2
+```
+
+### Environment variables for v2
+
+*   `AWS_SHARED_CREDENTIALS_FILE` - Shared credentials file path can be set to
+    instruct the SDK to use an alternate file for the shared credentials. If
+    not set the file will be loaded from $HOME/.aws/credentials on Linux/Unix
+    based systems, and %USERPROFILE%\.aws\credentials on Windows.
+
+### Options for v2
+
+```
+  -cache string
+    	cache name or connection URL
+    	 * memory://?capacity=1000
+    	 * redis://[{USER}:{PASS}@]{HOST}/[{DBNUM}]?[{OPTIONS}]
+    	
+    	   DBNUM: redis DB number (default 0)
+    	   OPTIONS:
+    		* lifetime : lifetime of cachetime (ex. "10s", "2m", "3h")
+    		* prefix   : prefix of keys
+    	
+    	   Example to connect the redis on localhost: "redis://:6379"
+  -logfile string
+    	log file path
+  -max-retries int
+    	max retries for AWS
+  -pidfile string
+    	PID file path (require -logfile)
+  -profile string
+    	AWS profile name
+  -queue value
+    	SQS queue name
+  -region string
+    	AWS region (default "us-east-1")
+  -remove-policy value
+    	policy to remove messages from SQS
+    	 * succeed          : after execution, succeeded (default)
+    	 * ignore_failure   : after execution, ignore its result
+    	 * before_execution : before execution
+  -timeout duration
+    	timeout for command execution (default 0 - no timeout)
+  -version
+    	show version
+  -workers int
+    	num of workers (default 8)
+```
 
 ## LICENSE
 

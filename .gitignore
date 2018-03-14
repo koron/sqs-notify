@@ -1,4 +1,5 @@
 *.exe
 /sqs-notify
+/sqs-notify2
 tags
 tmp/
