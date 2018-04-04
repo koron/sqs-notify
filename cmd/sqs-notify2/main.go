@@ -77,7 +77,7 @@ func main2() error {
 	}
 
 	if version {
-		fmt.Printf(sqsnotify2.Version)
+		fmt.Println("sqs-notify2 version:", sqsnotify2.Version)
 		os.Exit(1)
 	}
 
