@@ -49,6 +49,14 @@ func (sn *SQSNotify) log() *log.Logger {
 	return sn.Config.Logger
 }
 
+func (sn *SQSNotify) logResult(r *result) {
+	if r.err == nil {
+		sn.log().Printf("\tEXECUTED\tbody:%#v", *r.msg.Body)
+		return
+	}
+	sn.log().Printf("\tNOT_EXECUTED\tstage:%[2]s error:%[1]s", r.err, r.stg)
+}
+
 // Run runs SQS notification service.
 // ctx is not supported yet.
 func (sn *SQSNotify) Run() error {
@@ -95,7 +103,7 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 			return err
 		}
 		if len(msgs) == 0 {
-			sn.log().Printf("round %d polling timed out, proceed next", round)
+			//sn.log().Printf("round %d polling timed out, proceed next", round)
 			round++
 			continue
 		}
@@ -301,6 +309,7 @@ func (sn *SQSNotify) clearResults() {
 }
 
 func (sn *SQSNotify) addResult(r *result) {
+	sn.logResult(r)
 	sn.l.Lock()
 	sn.results = append(sn.results, r)
 	sn.l.Unlock()

@@ -20,3 +20,20 @@ const (
 func (stg Stage) MarshalBinary() ([]byte, error) {
 	return []byte{byte(stg)}, nil
 }
+
+func (stg Stage) String() string {
+	switch stg {
+	case None:
+		return "None"
+	case Recv:
+		return "Recv"
+	case Lock:
+		return "Lock"
+	case Exec:
+		return "Exec"
+	case Done:
+		return "Done"
+	default:
+		return "Unknown"
+	}
+}

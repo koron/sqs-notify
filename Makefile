@@ -32,7 +32,7 @@ report:
 	-golint ./...
 
 tags:
-	ctags -R .
+	gotags -f tags -R .
 
 -include Mk/*.mk
 
