@@ -19,10 +19,11 @@ func getQueueURL(api sqsiface.SQSAPI, queueName string) (*string, error) {
 	return out.QueueUrl, nil
 }
 
-func receiveMessages(ctx context.Context, api sqsiface.SQSAPI, queueURL *string, max int64) ([]*sqs.Message, error) {
+func receiveMessages(ctx context.Context, api sqsiface.SQSAPI, queueURL *string, max int64, waitTime *int64) ([]*sqs.Message, error) {
 	out, err := api.ReceiveMessageWithContext(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:            queueURL,
 		MaxNumberOfMessages: &max,
+		WaitTimeSeconds:     waitTime,
 	})
 	if err != nil {
 		return nil, err

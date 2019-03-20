@@ -41,6 +41,7 @@ func main2() error {
 		logfile string
 		pidfile string
 
+		waitTimeSec int64
 		removePolicy string
 	)
 
@@ -48,6 +49,7 @@ func main2() error {
 	flag.StringVar(&cfg.Region, "region", "us-east-1", "AWS region")
 	flag.Var(valid.String(&cfg.QueueName, "").MustSet(), "queue", "SQS queue name")
 	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
+	flag.Int64Var(&waitTimeSec, "wait-time-seconds", -1, `wait time in seconds for next polling. (default -1, disabled, use queue default)`)
 
 	flag.StringVar(&cfg.CacheName, "cache", cfg.CacheName,
 		`cache name or connection URL
@@ -88,6 +90,9 @@ func main2() error {
 	cfg.RemovePolicy = toRP(removePolicy)
 	cfg.CmdName = args[0]
 	cfg.CmdArgs = args[1:]
+	if waitTimeSec >= 0 {
+		cfg.WaitTime = &waitTimeSec
+	}
 
 	// Setup logger.
 	// FIXME: test logging features.

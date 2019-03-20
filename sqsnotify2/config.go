@@ -24,6 +24,7 @@ type Config struct {
 	Region     string
 	QueueName  string
 	MaxRetries int
+	WaitTime   *int64
 
 	CacheName string
 

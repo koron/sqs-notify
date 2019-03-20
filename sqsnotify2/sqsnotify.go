@@ -266,7 +266,7 @@ func (sn *SQSNotify) execCmd(m *sqs.Message) error {
 }
 
 func (sn *SQSNotify) receiveQ(api sqsiface.SQSAPI, queueURL *string, max int64) ([]*sqs.Message, error) {
-	msgs, err := receiveMessages(sn.ctx, api, queueURL, maxMsg)
+	msgs, err := receiveMessages(sn.ctx, api, queueURL, maxMsg, sn.WaitTime)
 	if err != nil {
 		return nil, err
 	}
