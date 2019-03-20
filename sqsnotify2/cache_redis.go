@@ -30,7 +30,7 @@ func newRedisCache(ctx context.Context, u *url.URL) (*redisCache, error) {
 	if u.User != nil {
 		opt.Password, _ = u.User.Password()
 	}
-	if u.Path != "" {
+	if len(u.Path) >= 2 {
 		opt.DB, err = strconv.Atoi(u.Path[1:])
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse path as DB num: %s", err)
