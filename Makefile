@@ -1,5 +1,6 @@
-PROJECT = sqs-notify
-VERSION = v2.0.0
+PROJECT = sqs-notify2
+PROJECT_DIR = ./cmd/sqs-notify2
+VERSION = v2.1.0
 RELEASE_TARGETS = release-windows-amd64 release-windows-386 release-linux-amd64 release-linux-386
 
 

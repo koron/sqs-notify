@@ -1,4 +1,5 @@
 PROJECT ?= NONAME
+PROJECT_DIR ?= .
 VERSION ?= v0
 REVISION ?= $(shell git rev-parse --short --verify HEAD)
 RELEASE_TARGETS ?= \
@@ -25,7 +26,7 @@ release: release-build
 
 release-build:
 	go clean
-	GOOS=$(RELEASE_OS) GOARCH=$(RELEASE_ARCH) go build -ldflags='-X main.version=$(VERSION) -X main.revision=$(REVISION)'
+	GOOS=$(RELEASE_OS) GOARCH=$(RELEASE_ARCH) go build -ldflags='-X main.version=$(VERSION) -X main.revision=$(REVISION)' $(PROJECT_DIR)
 
 release-all: $(RELEASE_TARGETS)
 
