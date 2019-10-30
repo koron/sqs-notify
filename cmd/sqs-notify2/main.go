@@ -122,7 +122,13 @@ func main2() error {
 	}()
 	signal.Notify(sig, os.Interrupt)
 
-	err := sqsnotify2.New(cfg).Run(ctx)
+	cache, err := sqsnotify2.NewCache(ctx, cfg.CacheName)
+	if err != nil {
+		return err
+	}
+	defer cache.Close()
+
+	err = sqsnotify2.New(cfg).Run(ctx, cache)
 	if err != nil {
 		if isCancel(err) {
 			return nil

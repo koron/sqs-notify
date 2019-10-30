@@ -27,7 +27,7 @@ type SQSNotify struct {
 
 	l       sync.Mutex
 	results []*result
-	cache   cache
+	cache   Cache
 }
 
 // New creates a SQSNotify object with configuration.
@@ -57,16 +57,12 @@ func (sn *SQSNotify) logResult(r *result) {
 
 // Run runs SQS notification service.
 // ctx is not supported yet.
-func (sn *SQSNotify) Run(ctx context.Context) error {
+func (sn *SQSNotify) Run(ctx context.Context, cache Cache) error {
 	svc, err := sn.newSQS()
 	if err != nil {
 		return err
 	}
-	c, err := newCache(ctx, sn.CacheName)
-	if err != nil {
-		return err
-	}
-	sn.cache = c
+	sn.cache = cache
 
 	return sn.run(ctx, svc)
 }

@@ -19,10 +19,12 @@ var (
 	errCacheNotFound = errors.New("cache not found")
 )
 
-type cache interface {
+// Cache defines cache storage interface.
+type Cache interface {
 	Insert(id string, stg stage.Stage) error
 	Update(id string, stg stage.Stage) error
 	Delete(id string) error
+	Close() error
 }
 
 type memoryCache struct {
@@ -105,7 +107,12 @@ func (mc *memoryCache) Delete(id string) error {
 	return nil
 }
 
-func newCache(ctx context.Context, name string) (cache, error) {
+func (mc *memoryCache) Close() error {
+	return nil
+}
+
+// NewCache creates a cache implementation.
+func NewCache(ctx context.Context, name string) (Cache, error) {
 	u, err := url.Parse(name)
 	if err != nil {
 		return nil, err
@@ -124,7 +131,6 @@ func newCache(ctx context.Context, name string) (cache, error) {
 		return newMemoryCache(capacity), nil
 
 	case "redis":
-		// TODO: close redis cache correctly.
 		return newRedisCache(ctx, u)
 	}
 	return nil, fmt.Errorf("not supported cache: %s", name)
