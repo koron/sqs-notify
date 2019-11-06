@@ -49,8 +49,12 @@ From online help.
     	AWS profile name
   -queue value
     	SQS queue name
+  -createqueue
+        create queue if not exists
   -region string
     	AWS region (default "us-east-1")
+  -endpoint string
+        Endpoint of SQS (default empty, auto select)
   -remove-policy value
     	policy to remove messages from SQS
     	 * succeed          : after execution, succeeded (default)

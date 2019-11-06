@@ -20,11 +20,13 @@ const (
 
 // Config configures sqsnotify2 service
 type Config struct {
-	Profile    string
-	Region     string
-	QueueName  string
-	MaxRetries int
-	WaitTime   *int64
+	Profile     string
+	Region      string
+	Endpoint    string
+	QueueName   string
+	CreateQueue bool
+	MaxRetries  int
+	WaitTime    *int64
 
 	CacheName string
 

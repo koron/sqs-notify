@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	valid "github.com/koron/go-valid"
@@ -41,13 +42,16 @@ func main2() error {
 		logfile string
 		pidfile string
 
-		waitTimeSec int64
+		waitTimeSec  int64
 		removePolicy string
+		multiplier   int
 	)
 
 	flag.StringVar(&cfg.Profile, "profile", "", "AWS profile name")
 	flag.StringVar(&cfg.Region, "region", "us-east-1", "AWS region")
+	flag.StringVar(&cfg.Endpoint, "endpoint", "", "Endpoint of SQS")
 	flag.Var(valid.String(&cfg.QueueName, "").MustSet(), "queue", "SQS queue name")
+	flag.BoolVar(&cfg.CreateQueue, "createqueue", false, "create queue if not exists")
 	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
 	flag.Int64Var(&waitTimeSec, "wait-time-seconds", -1, `wait time in seconds for next polling. (default -1, disabled, use queue default)`)
 
@@ -64,6 +68,7 @@ func main2() error {
    Example to connect the redis on localhost: "redis://:6379"`)
 
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
+	flag.Var(valid.Int(&multiplier, 1).Min(1), "multiplier", `pooling the SQS in multiple runner`)
 	flag.DurationVar(&cfg.Timeout, "timeout", 0, "timeout for command execution (default 0 - no timeout)")
 	flag.Var(valid.String(&removePolicy, rpSucceed).
 		OneOf(rpSucceed, rpIgnoreFailure, rpBeforeExecution), "remove-policy",
@@ -94,6 +99,13 @@ func main2() error {
 		cfg.WaitTime = &waitTimeSec
 	}
 
+	if cfg.Workers < 1 {
+		return errors.New("\"-worker\" should be greater than 0")
+	}
+	if cfg.Workers > 10 {
+		log.Print("\"WARN: -worker 10+\" doesn't have any effects, check \"-multiplier\"")
+	}
+
 	// Setup logger.
 	// FIXME: test logging features.
 	if pidfile != "" && logfile == "" {
@@ -122,12 +134,34 @@ func main2() error {
 	}()
 	signal.Notify(sig, os.Interrupt)
 
-	err := sqsnotify2.New(ctx, cfg).Run()
+	cache, err := sqsnotify2.NewCache(ctx, cfg.CacheName)
 	if err != nil {
-		if isCancel(err) {
-			return nil
-		}
 		return err
+	}
+	defer cache.Close()
+
+	var mu sync.Mutex
+	var errs []error
+
+	var sg sync.WaitGroup
+	sg.Add(multiplier)
+	for i := 0; i < multiplier; i++ {
+		go func(id int) {
+			defer sg.Done()
+			err := sqsnotify2.New(cfg).Run(ctx, cache)
+			if err == nil || isCancel(err) {
+				return
+			}
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+			log.Printf("inner process #%d is terminated by error: %s", id, err)
+		}(i)
+	}
+	sg.Wait()
+
+	if len(errs) > 0 {
+		return errs[0]
 	}
 
 	return nil

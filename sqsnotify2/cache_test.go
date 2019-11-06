@@ -10,7 +10,7 @@ import (
 	"github.com/koron/sqs-notify/sqsnotify2/stage"
 )
 
-func testCache(t *testing.T, c cache) {
+func testCache(t *testing.T, c Cache) {
 	id1 := "1234"
 	id2 := "abcd"
 

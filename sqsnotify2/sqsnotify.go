@@ -25,20 +25,18 @@ var discardLog = log.New(ioutil.Discard, "", 0)
 type SQSNotify struct {
 	Config
 
-	ctx     context.Context
 	l       sync.Mutex
 	results []*result
-	cache   cache
+	cache   Cache
 }
 
 // New creates a SQSNotify object with configuration.
-func New(ctx context.Context, cfg *Config) *SQSNotify {
+func New(cfg *Config) *SQSNotify {
 	if cfg == nil {
 		cfg = NewConfig()
 	}
 	return &SQSNotify{
 		Config: *cfg,
-		ctx:    ctx,
 	}
 }
 
@@ -59,18 +57,14 @@ func (sn *SQSNotify) logResult(r *result) {
 
 // Run runs SQS notification service.
 // ctx is not supported yet.
-func (sn *SQSNotify) Run() error {
+func (sn *SQSNotify) Run(ctx context.Context, cache Cache) error {
 	svc, err := sn.newSQS()
 	if err != nil {
 		return err
 	}
-	c, err := newCache(sn.ctx, sn.CacheName)
-	if err != nil {
-		return err
-	}
-	sn.cache = c
+	sn.cache = cache
 
-	return sn.run(svc)
+	return sn.run(ctx, svc)
 }
 
 func (sn *SQSNotify) newSQS() (*sqs.SQS, error) {
@@ -87,18 +81,21 @@ func (sn *SQSNotify) newSQS() (*sqs.SQS, error) {
 	if sn.MaxRetries > 0 {
 		cfg.WithMaxRetries(sn.MaxRetries)
 	}
+	if sn.Endpoint != "" {
+		cfg.WithEndpoint(sn.Endpoint)
+	}
 	return sqs.New(s, cfg), nil
 }
 
-func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
-	qu, err := getQueueURL(api, sn.QueueName)
+func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
+	qu, err := getQueueURL(api, sn.QueueName, sn.CreateQueue)
 	if err != nil {
 		return err
 	}
 	var round = 0
 	for {
 		// receive messages.
-		msgs, err := sn.receiveQ(api, qu, maxMsg)
+		msgs, err := sn.receiveQ(ctx, api, qu, maxMsg)
 		if err != nil {
 			return err
 		}
@@ -117,7 +114,7 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 					ReceiptHandle: m.ReceiptHandle,
 				})
 			}
-			err := sn.deleteQ(api, qu, entries)
+			err := sn.deleteQ(ctx, api, qu, entries)
 			if err != nil {
 				return err
 			}
@@ -137,7 +134,7 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 			go func(r, n int, m *sqs.Message, res *result) {
 				defer wg.Done()
 				res.stg = stage.Lock
-				err := sem.Acquire(sn.ctx, 1)
+				err := sem.Acquire(ctx, 1)
 				if err != nil {
 					sn.addResult(res.withErr(err))
 					return
@@ -149,7 +146,7 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 					sn.addResult(res.withErr(err))
 					return
 				}
-				err = sn.execCmd(m)
+				err = sn.execCmd(ctx, m)
 				if err != nil {
 					sn.addResult(res.withErr(err))
 					return
@@ -166,7 +163,7 @@ func (sn *SQSNotify) run(api sqsiface.SQSAPI) error {
 		wg.Wait()
 
 		// delete messages
-		err = sn.deleteQ(api, qu, sn.deleteEntries())
+		err = sn.deleteQ(ctx, api, qu, sn.deleteEntries())
 		if err != nil {
 			return err
 		}
@@ -226,11 +223,10 @@ func (sn *SQSNotify) shouldRemoveAfter(r *result) bool {
 }
 
 // execCmd executes a command for a message, and returns its exit code.
-func (sn *SQSNotify) execCmd(m *sqs.Message) error {
-	ctx := sn.ctx
+func (sn *SQSNotify) execCmd(ctx context.Context, m *sqs.Message) error {
 	if sn.Timeout != 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(sn.ctx, sn.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, sn.Timeout)
 		defer cancel()
 	}
 	cmd := exec.CommandContext(ctx, sn.CmdName, sn.CmdArgs...)
@@ -265,19 +261,19 @@ func (sn *SQSNotify) execCmd(m *sqs.Message) error {
 	return nil
 }
 
-func (sn *SQSNotify) receiveQ(api sqsiface.SQSAPI, queueURL *string, max int64) ([]*sqs.Message, error) {
-	msgs, err := receiveMessages(sn.ctx, api, queueURL, maxMsg, sn.WaitTime)
+func (sn *SQSNotify) receiveQ(ctx context.Context, api sqsiface.SQSAPI, queueURL *string, max int64) ([]*sqs.Message, error) {
+	msgs, err := receiveMessages(ctx, api, queueURL, maxMsg, sn.WaitTime)
 	if err != nil {
 		return nil, err
 	}
 	return msgs, nil
 }
 
-func (sn *SQSNotify) deleteQ(api sqsiface.SQSAPI, queueURL *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
+func (sn *SQSNotify) deleteQ(ctx context.Context, api sqsiface.SQSAPI, queueURL *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
-	err := deleteMessages(sn.ctx, api, queueURL, entries)
+	err := deleteMessages(ctx, api, queueURL, entries)
 	if err != nil {
 		if f, ok := err.(*deleteFailure); ok {
 			// TODO: retry or skip failed entries.
