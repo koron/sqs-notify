@@ -5,18 +5,37 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 )
 
-func getQueueURL(api sqsiface.SQSAPI, queueName string) (*string, error) {
-	out, err := api.GetQueueUrl(&sqs.GetQueueUrlInput{
+func getQueueURL(api sqsiface.SQSAPI, queueName string, create bool) (*string, error) {
+	rGet, err := api.GetQueueUrl(&sqs.GetQueueUrlInput{
+		QueueName: aws.String(queueName),
+	})
+	if err == nil {
+		return rGet.QueueUrl, nil
+	}
+	if !create || !isQueueDoesNotExist(err) {
+		return nil, err
+	}
+
+	rCreate, err := api.CreateQueue(&sqs.CreateQueueInput{
 		QueueName: aws.String(queueName),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return out.QueueUrl, nil
+	return rCreate.QueueUrl, nil
+}
+
+func isQueueDoesNotExist(err0 error) bool {
+	err, ok := err0.(awserr.Error)
+	if !ok {
+		return false
+	}
+	return err.Code() == sqs.ErrCodeQueueDoesNotExist
 }
 
 func receiveMessages(ctx context.Context, api sqsiface.SQSAPI, queueURL *string, max int64, waitTime *int64) ([]*sqs.Message, error) {

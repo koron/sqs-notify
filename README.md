@@ -49,6 +49,8 @@ From online help.
     	AWS profile name
   -queue value
     	SQS queue name
+  -createqueue
+        create queue if not exists
   -region string
     	AWS region (default "us-east-1")
   -endpoint string

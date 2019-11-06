@@ -88,7 +88,7 @@ func (sn *SQSNotify) newSQS() (*sqs.SQS, error) {
 }
 
 func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
-	qu, err := getQueueURL(api, sn.QueueName)
+	qu, err := getQueueURL(api, sn.QueueName, sn.CreateQueue)
 	if err != nil {
 		return err
 	}
