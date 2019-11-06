@@ -1,24 +1,28 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
-	"github.com/goamz/goamz/aws"
-	"github.com/goamz/goamz/sqs"
-	"github.com/koron/sqs-notify/awsutil"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
 const maxSend = 10
 
 var (
-	region = flag.String("r", "us-east-1", "AWS region for SQS")
-	queue  = flag.String("q", "", "queue name to send")
-	num    = flag.Int("n", 1, "number of message to send")
-	prefix = flag.String("p", "", "prefix for messages")
+	endpoint string
+	region   string
+	qname    string
+
+	msgnum int
+	prefix string
 )
 
 func min(a, b int) int {
@@ -29,52 +33,107 @@ func min(a, b int) int {
 }
 
 func main() {
+	flag.StringVar(&endpoint, "endpoint", "", "endpoint of SQS")
+	flag.StringVar(&region, "r", "us-east-1", "AWS region for SQS")
+	flag.StringVar(&qname, "q", "", "queue name to send")
+	flag.IntVar(&msgnum, "n", 1, "number of message to send")
+	flag.StringVar(&prefix, "p", "", "prefix for messages")
 	flag.Parse()
-	if *queue == "" {
+	if qname == "" {
 		flag.Usage()
 		fmt.Fprintf(os.Stderr, "need to specify queue name")
 		os.Exit(1)
 	}
-	err := send(*region, *queue, *prefix, *num)
+	err := sendMessages(context.Background())
 	if err != nil {
 		log.Printf("fail to send: %s", err)
 	}
 }
 
-func openQueue(rname, qname string) (*sqs.Queue, error) {
-	auth, err := awsutil.GetAuth("sqs-send")
+func ensureQueue(ctx context.Context, q *sqs.SQS, qn string) (*string, error) {
+	rGet, err := q.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{
+		QueueName: aws.String(qn),
+	})
+	if err == nil {
+		return rGet.QueueUrl, nil
+	}
+	if !isQueueDoesNotExist(err) {
+		return nil, err
+	}
+	rCreate, err := q.CreateQueueWithContext(ctx, &sqs.CreateQueueInput{
+		QueueName: aws.String(qn),
+	})
 	if err != nil {
 		return nil, err
 	}
-	region, ok := aws.Regions[rname]
-	if !ok {
-		return nil, errors.New("unknown region: " + rname)
-	}
-	queue, err := sqs.New(auth, region).GetQueue(qname)
-	if err != nil {
-		return nil, err
-	}
-	return queue, nil
+	return rCreate.QueueUrl, nil
 }
 
-func send(rname, qname, prefix string, num int) error {
-	queue, err := openQueue(rname, qname)
+func isQueueDoesNotExist(err0 error) bool {
+	err, ok := err0.(awserr.Error)
+	if !ok {
+		return false
+	}
+	return err.Code() == sqs.ErrCodeQueueDoesNotExist
+}
+
+func sendQueue(ctx context.Context, q *sqs.SQS, qurl *string, msgs []string) error {
+	entries := make([]*sqs.SendMessageBatchRequestEntry, 0, len(msgs))
+	for i, m := range msgs {
+		entries = append(entries, &sqs.SendMessageBatchRequestEntry{
+			Id:          aws.String(strconv.Itoa(i)),
+			MessageBody: aws.String(m),
+		})
+	}
+	_, err := q.SendMessageBatchWithContext(ctx, &sqs.SendMessageBatchInput{
+		Entries:  entries,
+		QueueUrl: qurl,
+	})
 	if err != nil {
 		return err
 	}
-	msg := make([]string, 0, maxSend)
-	for i := 0; i < num; {
-		msg = msg[:0]
-		n := min(num-i, maxSend)
+	return nil
+}
+
+func newSQS() (*sqs.SQS, error) {
+	cfg := aws.NewConfig()
+	if endpoint != "" {
+		cfg.WithEndpoint(endpoint)
+	}
+	if region != "" {
+		cfg.WithRegion(region)
+	}
+	ses, err := session.NewSession(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return sqs.New(ses), nil
+}
+
+func sendMessages(ctx context.Context) error {
+	q, err := newSQS()
+	if err != nil {
+		return err
+	}
+
+	qurl, err := ensureQueue(ctx, q, qname)
+	if err != nil {
+		return err
+	}
+
+	msgs := make([]string, 0, maxSend)
+	for i := 0; i < msgnum; {
+		msgs = msgs[:0]
+		n := min(msgnum-i, maxSend)
 		for j := i; j < i+n; j++ {
-			msg = append(msg, fmt.Sprintf("%s%d", prefix, j+1))
+			msgs = append(msgs, fmt.Sprintf("%s%d", prefix, j+1))
 		}
-		_, err := queue.SendMessageBatchString(msg)
+		err := sendQueue(ctx, q, qurl, msgs)
 		if err != nil {
 			return err
 		}
-		for _, s := range msg {
-			log.Printf("sent %q", s)
+		for _, m := range msgs {
+			log.Printf("sent %q", m)
 		}
 		i += n
 	}
