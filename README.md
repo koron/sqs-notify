@@ -51,6 +51,8 @@ From online help.
     	SQS queue name
   -region string
     	AWS region (default "us-east-1")
+  -endpoint string
+        Endpoint of SQS (default empty, auto select)
   -remove-policy value
     	policy to remove messages from SQS
     	 * succeed          : after execution, succeeded (default)

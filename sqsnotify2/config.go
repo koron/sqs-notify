@@ -22,6 +22,7 @@ const (
 type Config struct {
 	Profile    string
 	Region     string
+	Endpoint   string
 	QueueName  string
 	MaxRetries int
 	WaitTime   *int64

@@ -49,6 +49,7 @@ func main2() error {
 
 	flag.StringVar(&cfg.Profile, "profile", "", "AWS profile name")
 	flag.StringVar(&cfg.Region, "region", "us-east-1", "AWS region")
+	flag.StringVar(&cfg.Endpoint, "endpoint", "", "Endpoint of SQS")
 	flag.Var(valid.String(&cfg.QueueName, "").MustSet(), "queue", "SQS queue name")
 	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
 	flag.Int64Var(&waitTimeSec, "wait-time-seconds", -1, `wait time in seconds for next polling. (default -1, disabled, use queue default)`)

@@ -81,6 +81,9 @@ func (sn *SQSNotify) newSQS() (*sqs.SQS, error) {
 	if sn.MaxRetries > 0 {
 		cfg.WithMaxRetries(sn.MaxRetries)
 	}
+	if sn.Endpoint != "" {
+		cfg.WithEndpoint(sn.Endpoint)
+	}
 	return sqs.New(s, cfg), nil
 }
 
