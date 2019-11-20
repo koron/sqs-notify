@@ -39,22 +39,24 @@ From online help.
     		* prefix   : prefix of keys
     	
     	   Example to connect the redis on localhost: "redis://:6379"
+  -createqueue
+    	create queue if not exists
+  -endpoint string
+    	Endpoint of SQS
   -logfile string
     	log file path
   -max-retries int
     	max retries for AWS
+  -multiplier value
+    	pooling the SQS in multiple runner (default 1)
   -pidfile string
     	PID file path (require -logfile)
   -profile string
     	AWS profile name
   -queue value
     	SQS queue name
-  -createqueue
-        create queue if not exists
   -region string
     	AWS region (default "us-east-1")
-  -endpoint string
-        Endpoint of SQS (default empty, auto select)
   -remove-policy value
     	policy to remove messages from SQS
     	 * succeed          : after execution, succeeded (default)
@@ -64,8 +66,10 @@ From online help.
     	timeout for command execution (default 0 - no timeout)
   -version
     	show version
+  -wait-time-seconds int
+    	wait time in seconds for next polling. (default -1, disabled, use queue default) (default -1)
   -workers int
-    	num of workers (default 8)
+    	num of workers (default 16)
 ```
 
 ## Guide
