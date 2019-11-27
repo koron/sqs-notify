@@ -13,7 +13,13 @@ For old version (v1), check [doc/v1.md](./doc/v1.md).
 Install and upgrade.
 
 ```console
-$ go get -u github.com/koron/sqs-notify/cmd/sqs-notify2
+$ go get github.com/koron/sqs-notify/cmd/sqs-notify2
+```
+
+To install development version.
+
+```console
+$ GO111MODULE=on go get github.com/koron/sqs-notify/cmd/sqs-notify2@develop
 ```
 
 ## Environment variables
