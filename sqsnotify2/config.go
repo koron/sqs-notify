@@ -46,3 +46,10 @@ func NewConfig() *Config {
 		Workers: runtime.NumCPU(),
 	}
 }
+
+func (c Config) workers() int {
+	if c.Workers <= 0 {
+		return runtime.NumCPU()
+	}
+	return c.Workers
+}

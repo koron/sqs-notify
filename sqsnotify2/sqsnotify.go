@@ -17,8 +17,6 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-const maxMsg = 10
-
 var discardLog = log.New(ioutil.Discard, "", 0)
 
 // SQSNotify provides SQS consumer and job manager.
@@ -93,9 +91,10 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		return err
 	}
 	var round = 0
+	nw := sn.workers()
 	for {
 		// receive messages.
-		msgs, err := sn.receiveQ(ctx, api, qu, maxMsg)
+		msgs, err := sn.receiveQ(ctx, api, qu, int64(nw))
 		if err != nil {
 			return err
 		}
@@ -121,7 +120,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 		}
 
 		// run as commands
-		sem := sn.newWeighted()
+		sem := semaphore.NewWeighted(int64(nw))
 		var wg sync.WaitGroup
 		for i, m := range msgs {
 			res := &result{round: round, index: i, msg: m}
@@ -262,7 +261,7 @@ func (sn *SQSNotify) execCmd(ctx context.Context, m *sqs.Message) error {
 }
 
 func (sn *SQSNotify) receiveQ(ctx context.Context, api sqsiface.SQSAPI, queueURL *string, max int64) ([]*sqs.Message, error) {
-	msgs, err := receiveMessages(ctx, api, queueURL, maxMsg, sn.WaitTime)
+	msgs, err := receiveMessages(ctx, api, queueURL, max, sn.WaitTime)
 	if err != nil {
 		return nil, err
 	}
@@ -290,12 +289,15 @@ func (sn *SQSNotify) handleCopyMessageFailure(err error, m *sqs.Message) {
 	sn.log().Printf("failed to pass message body: id=%s err=%s", *m.MessageId, err)
 }
 
-func (sn *SQSNotify) newWeighted() *semaphore.Weighted {
-	n := sn.Workers
-	if n < 0 || n > maxMsg {
-		n = 4
+const maxMsg = 10
+
+// workers returns 同時に実行可能な workers
+func (sn *SQSNotify) workers() int {
+	n := sn.Config.workers()
+	if n > maxMsg {
+		return maxMsg
 	}
-	return semaphore.NewWeighted(int64(n))
+	return n
 }
 
 func (sn *SQSNotify) clearResults() {
