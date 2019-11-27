@@ -27,5 +27,11 @@ jobs:
     - name: Unit test
       run: go test
 
-    - name: Build
-      run: go build
+    - name: "Build: sqs-notify2"
+      run: go build ./cmd/sqs-notify2
+
+    - name: "Build: sqs-echo"
+      run: go build ./cmd/sqs-echo
+
+    - name: "Build: sqs-send"
+      run: go build ./cmd/sqs-send
