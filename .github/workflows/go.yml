@@ -1,0 +1,36 @@
+name: Go
+
+on: [push]
+
+env:
+  GOPATH: ${{ github.workspace }}/..
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    steps:
+
+    - uses: actions/setup-go@v3
+      with:
+        go-version: 1.x
+
+    - uses: actions/checkout@v3
+
+    - run: go test ./...
+
+    - name: "Build: sqs-notify2"
+      run: go build ./cmd/sqs-notify2
+
+    - name: "Build: sqs-echo"
+      run: go build ./cmd/sqs-echo
+
+    - name: "Build: sqs-send"
+      run: go build ./cmd/sqs-send
+
+# based on: github.com/koron-go/_skeleton/.github/workflows/go.yml
