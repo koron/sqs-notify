@@ -1,6 +1,7 @@
 # SQS notify
 
-[![CircleCI](https://circleci.com/gh/koron/sqs-notify.svg?style=svg)](https://circleci.com/gh/koron/sqs-notify)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/koron/sqs-notify)](https://pkg.go.dev/github.com/koron/sqs-notify)
+[![Actions/Go](https://github.com/koron/sqs-notify/workflows/Go/badge.svg)](https://github.com/koron/sqs-notify/actions?query=workflow%3AGo)
 [![Go Report Card](https://goreportcard.com/badge/github.com/koron/sqs-notify)](https://goreportcard.com/report/github.com/koron/sqs-notify)
 
 Listen a SQS queue, execute a command when received.  A message body is passed
@@ -13,7 +14,7 @@ For old version (v1), check [doc/v1.md](./doc/v1.md).
 Install and upgrade.
 
 ```console
-$ go get -u github.com/koron/sqs-notify/cmd/sqs-notify2
+$ go install github.com/koron/sqs-notify/cmd/sqs-notify2@latest
 ```
 
 ## Environment variables
@@ -81,7 +82,7 @@ Basic usage:
 1.  Prepare AWS auth information.
     1.  Use `~/.aws/credentials` (recomended).
 
-        sqs-notify supports `~/.aws/credentials` profiles.
+        sqs-notify2 supports `~/.aws/credentials` profiles.
         `-profile` option can choose the profile used to.  Example:
 
         ```ini
@@ -98,7 +99,7 @@ Basic usage:
         *   `AWS_ACCESS_KEY_ID`
         *   `AWS_SECRET_ACCESS_KEY`
 
-2.  Run sqs-notify
+2.  Run sqs-notify2
 
     ```console
     $ sqs-notify2 -queue my_queue cat
@@ -127,7 +128,7 @@ Basic usage:
 When `-logfile {FILE PATH}` is given, all messages which received are logged
 into the file.  If FILE PATH is `-`, it output all logs to STDOUT not file.
 
-Using `-pidfile {FILE PATH}` with `-logfile`, sqs-notify writes own PID to the
+Using `-pidfile {FILE PATH}` with `-logfile`, sqs-notify2 writes own PID to the
 file.  You can send SIGHUP to that PID to rotate log.
 
 ## Miscellaneous
@@ -136,7 +137,7 @@ file.  You can send SIGHUP to that PID to rotate log.
 
 When message doesn't have LF at EOF (end of file/message), the last line can't
 be handled by `read` shell command or so.  This is limitation of `read`
-command, not sqs-notify.  Therefore this kind of scripts don't work correctly
+command, not sqs-notify2.  Therefore this kind of scripts don't work correctly
 for messages without LF at EOF:
 
 ```sh
@@ -173,7 +174,7 @@ data=`cat /dev/stdin`
 
 ### sqs-echo
 
-sqs-echo is useful for debugging received SQS message with sqs-notify.  It just
+sqs-echo is useful for debugging received SQS message with sqs-notify2.  It just
 shows date, time, byte num and contents of received messages.  Example output
 is below:
 
@@ -185,7 +186,7 @@ is below:
 You can install sqs-echo with below command.
 
 ```
-$ go install github.com/koron/sqs-notify/cmd/sqs-echo
+$ go install github.com/koron/sqs-notify/cmd/sqs-echo@latest
 ```
 
 ## LICENSE
