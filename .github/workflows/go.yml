@@ -3,7 +3,7 @@ name: Go
 on: [push]
 
 env:
-  GOPATH: ${{ github.workspace }}/..
+  GO_VERSION: '>=1.21.0'
 
 jobs:
 
@@ -16,13 +16,15 @@ jobs:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
     steps:
 
-    - uses: actions/setup-go@v3
-      with:
-        go-version: 1.x
+    - uses: actions/checkout@v4
 
-    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
 
     - run: go test ./...
+
+    - run: go build
 
     - name: "Build: sqs-notify2"
       run: go build ./cmd/sqs-notify2
