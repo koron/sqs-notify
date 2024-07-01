@@ -136,7 +136,12 @@ func (c *config) toApp() (*app, error) {
 		return nil, errors.New("unknown region:" + c.region)
 	}
 
-	sqsnotify.Logger = c.logger()
+	logger, err := c.logger()
+	if err != nil {
+		return nil, err
+	}
+
+	sqsnotify.Logger = logger
 	notify := sqsnotify.New(auth, region, c.queue)
 	// TODO: should another option be used? (github#19)
 	notify.FailMax = c.retryMax
@@ -147,7 +152,7 @@ func (c *config) toApp() (*app, error) {
 	}
 
 	return &app{
-		logger:        c.logger(),
+		logger:        logger,
 		auth:          auth,
 		region:        region,
 		worker:        c.worker,
@@ -162,22 +167,25 @@ func (c *config) toApp() (*app, error) {
 	}, nil
 }
 
-func (c *config) logger() *log.Logger {
+func (c *config) logger() (*log.Logger, error) {
 	if c.l != nil {
-		return c.l
+		return c.l, nil
 	}
 	if len(c.logfile) > 0 {
 		if c.logfile == "-" {
 			c.l = log.New(os.Stdout, "", log.LstdFlags)
 		} else {
-			w := hupwriter.New(c.logfile, c.pidfile)
+			w, err := hupwriter.New(c.logfile, c.pidfile)
+			if err != nil {
+				return nil, err
+			}
 			c.l = log.New(w, "", log.LstdFlags)
 		}
 	}
 	if c.l == nil {
 		c.l = log.New(ioutil.Discard, "", 0)
 	}
-	return c.l
+	return c.l, nil
 }
 
 func (c *config) newJobs() (jobs, error) {
@@ -186,7 +194,10 @@ func (c *config) newJobs() (jobs, error) {
 		if err != nil {
 			return nil, err
 		}
-		rj.logger = c.logger()
+		rj.logger, err = c.logger()
+		if err != nil {
+			return nil, err
+		}
 		return rj, nil
 	}
 	return newJobs(c.msgcache)

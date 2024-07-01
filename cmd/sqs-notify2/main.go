@@ -115,7 +115,11 @@ func main2() error {
 		if logfile == "-" {
 			cfg.Logger = log.New(os.Stdout, "", log.LstdFlags)
 		} else {
-			cfg.Logger = log.New(hupwriter.New(logfile, pidfile), "", 0)
+			w, err := hupwriter.New(logfile, pidfile)
+			if err != nil {
+				return err
+			}
+			cfg.Logger = log.New(w, "", 0)
 		}
 	}
 
