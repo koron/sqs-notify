@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -183,7 +183,7 @@ func (c *config) logger() (*log.Logger, error) {
 		}
 	}
 	if c.l == nil {
-		c.l = log.New(ioutil.Discard, "", 0)
+		c.l = log.New(io.Discard, "", 0)
 	}
 	return c.l, nil
 }
@@ -204,7 +204,7 @@ func (c *config) newJobs() (jobs, error) {
 }
 
 func loadRedisJobs(path string) (*redisJobsManager, error) {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

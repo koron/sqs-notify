@@ -1,40 +1,51 @@
-PROJECT = sqs-notify2
-PROJECT_DIR = ./cmd/sqs-notify2
-VERSION = v2.2.1
-RELEASE_TARGETS = release-windows-amd64 release-windows-386 release-linux-amd64 release-linux-386
+TEST_PACKAGE ?= ./...
 
+.PHONY: build
+build:
+	go build -gcflags '-e' ./cmd/sqs-notify2
+	go build -gcflags '-e' ./cmd/sqs-echo
+	go build -gcflags '-e' ./cmd/sqs-send
 
-default: test
-
+.PHONY: test
 test:
-	go test ./...
+	go test $(TEST_PACKAGE)
 
-test-full:
-	go test -v -race ./...
+.PHONY: bench
+bench:
+	go test -bench $(TEST_PACKAGE)
 
-lint:
-	-go vet ./...
-	@echo ""
-	-golint ./...
-
-cyclo:
-	-gocyclo -top 10 -avg .
-
-report:
-	@echo "misspell"
-	@find . -name "*.go" | xargs misspell
-	@echo ""
-	-errcheck ./...
-	@echo ""
-	-gocyclo -over 14 -avg .
-	@echo ""
-	-go vet ./...
-	@echo ""
-	-golint ./...
-
+.PHONY: tags
 tags:
 	gotags -f tags -R .
 
--include Mk/*.mk
+.PHONY: cover
+cover:
+	mkdir -p tmp
+	go test -coverprofile tmp/_cover.out $(TEST_PACKAGE)
+	go tool cover -html tmp/_cover.out -o tmp/cover.html
 
-.PHONY: test test-full lint cyclo report tags
+.PHONY: checkall
+checkall: vet staticcheck
+
+.PHONY: vet
+vet:
+	go vet $(TEST_PACKAGE)
+
+.PHONY: staticcheck
+staticcheck:
+	staticcheck $(TEST_PACKAGE)
+
+.PHONY: clean
+clean:
+	go clean
+	rm -f tags
+	rm -f tmp/_cover.out tmp/cover.html
+
+list-upgradable-modules:
+	@go list -m -u -f '{{if .Update}}{{.Path}} {{.Version}} [{{.Update.Version}}]{{end}}' all
+
+.PHONY: test-full
+test-full:
+	go test -race $(TEST_PACKAGE)
+
+# based on: github.com/koron-go/_skeleton/Makefile

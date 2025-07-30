@@ -3,7 +3,7 @@ package sqsnotify
 import (
 	"container/list"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"sync"
 
@@ -15,16 +15,9 @@ import (
 var MessageCount = 1
 
 // Logger provides log for sqsnotify.
-var Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+var Logger = log.New(io.Discard, "", log.LstdFlags)
 
 const maxDelete = 10
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 // SQSNotify provides SQS message stream.
 type SQSNotify struct {
@@ -168,7 +161,7 @@ func (n *SQSNotify) flushDeleteQueue() error {
 	}
 	if n.FailMax > 0 {
 		n.failCnt++
-		if n.failCnt >= n.failCnt {
+		if n.failCnt >= n.FailMax {
 			// TODO: better failure propagation. (github#19)
 			panic(fmt.Sprintf("delete fails last %d times", n.failCnt))
 		}

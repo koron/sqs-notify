@@ -3,6 +3,7 @@
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/koron/sqs-notify)](https://pkg.go.dev/github.com/koron/sqs-notify)
 [![Actions/Go](https://github.com/koron/sqs-notify/workflows/Go/badge.svg)](https://github.com/koron/sqs-notify/actions?query=workflow%3AGo)
 [![Go Report Card](https://goreportcard.com/badge/github.com/koron/sqs-notify)](https://goreportcard.com/report/github.com/koron/sqs-notify)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/koron/sqs-notify)
 
 Listen a SQS queue, execute a command when received.  A message body is passed
 as STDIN to the command.
