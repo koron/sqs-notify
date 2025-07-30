@@ -1,6 +1,6 @@
 module github.com/koron/sqs-notify
 
-go 1.21.11
+go 1.23.11
 
 require (
 	github.com/VividCortex/godaemon v1.0.0

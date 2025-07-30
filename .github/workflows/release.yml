@@ -2,8 +2,11 @@ name: Release
 
 on: [push]
 
+permissions:
+  contents: write
+
 env:
-  GO_VERSION: '>=1.21.0'
+  GO_VERSION: '>=1.23.0'
   NAME: 'sqs-notify2'
 
 jobs:
@@ -15,11 +18,21 @@ jobs:
 
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-        arch: [ amd64, arm64 ]
+        os:
+        - ubuntu-latest
+        - ubuntu-24.04-arm
+        - macos-latest
+        - windows-latest
+        arch:
+        - amd64
+        - arm64
         exclude:
         - os: windows-latest
           arch: arm64
+        - os: ubuntu-latest
+          arch: arm64
+        - os: ubuntu-24.04-arm
+          arch: amd64
 
     steps:
 
@@ -40,11 +53,6 @@ jobs:
         echo "VERSION=${VERSION}" >> $GITHUB_ENV
         case ${{ matrix.os }} in
           ubuntu-*)
-            if [ "${{ matrix.arch }}" = "arm64" ] ; then
-              sudo apt-get update
-              sudo apt-get -y install gcc-12-aarch64-linux-gnu
-              echo "CC=aarch64-linux-gnu-gcc-12" >> $GITHUB_ENV
-            fi
             export GOOS=linux
             export PKGEXT=.tar.gz
             ;;
@@ -86,7 +94,7 @@ jobs:
 
         case "${PKGEXT}" in
           ".tar.gz")
-            tar cf _build/${PKGNAME}${PKGEXT} -C _build ${PKGNAME}
+            tar caf _build/${PKGNAME}${PKGEXT} -C _build ${PKGNAME}
             ;;
           ".zip")
             (cd _build && zip -r9q ${PKGNAME}${PKGEXT} ${PKGNAME})
@@ -119,7 +127,7 @@ jobs:
       with: { name: windows_amd64 }
     - run: ls -lafR
     - name: Release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
       with:
         draft: true
         prerelease: ${{ contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.') }}
