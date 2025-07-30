@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -11,7 +11,7 @@ import (
 func main() {
 	sleep := flag.Int("sleep", 0, "sleep seconds after output (default: 0)")
 	flag.Parse()
-	b, err := ioutil.ReadAll(os.Stdin)
+	b, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		panic(err)
 	}
