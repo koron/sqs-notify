@@ -10,10 +10,36 @@ env:
 
 jobs:
 
-  build:
+  check:
+    name: Check if the main package exists
+    outputs:
+      exists: ${{ steps.check.outputs.exists }}
 
-    name: Build
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - uses: actions/checkout@v5
+    - uses: actions/setup-go@v6
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Check for main packages
+      id: check
+      run: |
+        if go list -f '{{.Name}}' ./... | grep -q '^main$' ; then
+          echo "Found main package"
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "Not found main package"
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+
+  build:
+    name: Build releases
+
+    needs: check
+    if: needs.check.outputs.exists == 'true'
 
     strategy:
       matrix:
@@ -32,6 +58,8 @@ jobs:
           arch: arm64
         - os: ubuntu-24.04-arm
           arch: amd64
+
+    runs-on: ${{ matrix.os }}
 
     steps:
 
@@ -145,4 +173,4 @@ jobs:
         append_body: true
 
 # based on: github.com/koron-go/_skeleton/.github/workflows/release.yml
-# $Hash:e9ff8abc2b9b98f49b57aca4a91f55684181e14b7aadabd01a43f6f8$
+# $Hash:fe61db7be4facce0f6c8d7889e15a933f42f3eef6301da83d440649f$
