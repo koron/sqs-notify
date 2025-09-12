@@ -6,8 +6,7 @@ permissions:
   contents: write
 
 env:
-  GO_VERSION: '>=1.23.0'
-  NAME: 'sqs-notify2'
+  GO_VERSION: '>=1.24.0'
 
 jobs:
 
@@ -36,8 +35,8 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
+    - uses: actions/checkout@v5
+    - uses: actions/setup-go@v6
       with:
         go-version: ${{ env.GO_VERSION }}
 
@@ -45,6 +44,7 @@ jobs:
       id: setup
       shell: bash
       run: |
+        export NAME="${GITHUB_REPOSITORY#${GITHUB_REPOSITORY_OWNER}/}"
         if [[ ${GITHUB_REF} =~ ^refs/tags/v[0-9]+\.[0-9]+ ]] ; then
           export VERSION=${GITHUB_REF_NAME}
         else
@@ -73,24 +73,30 @@ jobs:
         echo "PKGNAME=${NAME}_${VERSION}_${GOOS}_${GOARCH}" >> $GITHUB_ENV
         echo "PKGEXT=${PKGEXT}" >> $GITHUB_ENV
 
-    - name: Build
+    - name: Build all "main" packages
       shell: bash
       run: |
-        go build ./cmd/sqs-notify2
-        go build ./cmd/sqs-echo
-        go build ./cmd/sqs-send
+        root=$(go list -f '{{.ImportPath}}' .)
+        for path in $(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./... ) ; do
+          dir=".${path#${root}}"
+          printf "building %s\t(%s)\n" $(basename "$path") $dir
+          ( cd "$dir" && go build )
+        done
 
     - name: Archive
       shell: bash
       run: |
-        rm -rf _build/${PKGNAME}
         mkdir -p _build/${PKGNAME}
+
+        root=$(go list -f '{{.ImportPath}}' .)
+        for path in $(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./... ) ; do
+          dir=".${path#${root}}"
+          name=$(basename "$path")
+          cp "${dir}/${name}" _build/${PKGNAME}
+        done
+
         cp -p LICENSE _build/${PKGNAME}
         cp -p README.md _build/${PKGNAME}
-
-        cp -p sqs-notify2 _build/${PKGNAME}
-        cp -p sqs-echo _build/${PKGNAME}
-        cp -p sqs-send _build/${PKGNAME}
 
         case "${PKGEXT}" in
           ".tar.gz")
@@ -115,19 +121,19 @@ jobs:
     needs:
     - build
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with: { name: darwin_amd64 }
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with: { name: darwin_arm64 }
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with: { name: linux_amd64 }
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with: { name: linux_arm64 }
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with: { name: windows_amd64 }
     - run: ls -lafR
     - name: Release
-      uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+      uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
       with:
         draft: true
         prerelease: ${{ contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.') }}
@@ -139,3 +145,4 @@ jobs:
         append_body: true
 
 # based on: github.com/koron-go/_skeleton/.github/workflows/release.yml
+# $Hash:e9ff8abc2b9b98f49b57aca4a91f55684181e14b7aadabd01a43f6f8$
