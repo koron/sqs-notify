@@ -107,8 +107,12 @@ jobs:
         root=$(go list -f '{{.ImportPath}}' .)
         for path in $(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./... ) ; do
           dir=".${path#${root}}"
-          printf "building %s\t(%s)\n" $(basename "$path") $dir
-          ( cd "$dir" && go build )
+          if [ -f "$dir/.norelease" ] ; then
+            printf "skipped  %s\t(%s found)\n" $(basename "$path") "$dir/.norelease"
+          else
+            printf "building %s\t(%s)\n" $(basename "$path") $dir
+            ( cd "$dir" && go build )
+          fi
         done
 
     - name: Archive
@@ -119,6 +123,7 @@ jobs:
         root=$(go list -f '{{.ImportPath}}' .)
         for path in $(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./... ) ; do
           dir=".${path#${root}}"
+          if [ -f "$dir/.norelease" ] ; then continue ; fi
           name=$(basename "$path")
           cp "${dir}/${name}" _build/${PKGNAME}
         done
