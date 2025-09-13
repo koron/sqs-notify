@@ -13,7 +13,7 @@ jobs:
   check:
     name: Check if the main package exists
     outputs:
-      exists: ${{ steps.check.outputs.exists }}
+      targets: ${{ steps.list.outputs.targets }}
 
     runs-on: ubuntu-latest
 
@@ -24,22 +24,31 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Check for main packages
-      id: check
+    - name: List "main" packages to be released
+      id: list
       run: |
-        if go list -f '{{.Name}}' ./... | grep -q '^main$' ; then
-          echo "Found main package"
-          echo "exists=true" >> $GITHUB_OUTPUT
-        else
-          echo "Not found main package"
-          echo "exists=false" >> $GITHUB_OUTPUT
-        fi
+        echo "targets<<__END__" >> $GITHUB_OUTPUT
+        root=$(go list -f '{{.ImportPath}}' .)
+        for path in $(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./... ) ; do
+          dir=".${path#${root}}"
+          name=$(basename "$path")
+          if [ -f "$dir/.norelease" ] ; then
+            echo -e "Skipped $name\t($dir), due to $dir/.norelease found"
+          else
+            echo "$name $dir $path" >> $GITHUB_OUTPUT
+            echo -e "Added   $name\t($dir) to the release"
+          fi
+        done
+        echo "__END__" >> $GITHUB_OUTPUT
 
   build:
     name: Build releases
 
     needs: check
-    if: needs.check.outputs.exists == 'true'
+    if: needs.check.outputs.targets != ''
+
+    env:
+      RELEASE_TARGETS: ${{needs.check.outputs.targets}}
 
     strategy:
       matrix:
@@ -104,15 +113,10 @@ jobs:
     - name: Build all "main" packages
       shell: bash
       run: |
-        root=$(go list -f '{{.ImportPath}}' .)
-        for path in $(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./... ) ; do
-          dir=".${path#${root}}"
-          if [ -f "$dir/.norelease" ] ; then
-            printf "skipped  %s\t(%s found)\n" $(basename "$path") "$dir/.norelease"
-          else
-            printf "building %s\t(%s)\n" $(basename "$path") $dir
-            ( cd "$dir" && go build )
-          fi
+        echo "$RELEASE_TARGETS" | while IFS= read -r line ; do
+          read -a entry <<< "$line"
+          printf "building %s\t(%s)\n" "${entry[0]}" "${entry[1]}"
+          ( cd "${entry[1]}" && go build )
         done
 
     - name: Archive
@@ -120,12 +124,9 @@ jobs:
       run: |
         mkdir -p _build/${PKGNAME}
 
-        root=$(go list -f '{{.ImportPath}}' .)
-        for path in $(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./... ) ; do
-          dir=".${path#${root}}"
-          if [ -f "$dir/.norelease" ] ; then continue ; fi
-          name=$(basename "$path")
-          cp "${dir}/${name}" _build/${PKGNAME}
+        echo "$RELEASE_TARGETS" | while IFS= read -r line ; do
+          read -a entry <<< "$line"
+          cp "${entry[1]}/${entry[0]}" _build/${PKGNAME}
         done
 
         cp -p LICENSE _build/${PKGNAME}
