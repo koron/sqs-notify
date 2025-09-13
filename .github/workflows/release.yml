@@ -27,9 +27,11 @@ jobs:
     - name: List "main" packages to be released
       id: list
       run: |
+        found=0
         echo "targets<<__END__" >> $GITHUB_OUTPUT
         root=$(go list -f '{{.ImportPath}}' .)
         for path in $(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./... ) ; do
+          found=1
           dir=".${path#${root}}"
           name=$(basename "$path")
           if [ -f "$dir/.norelease" ] ; then
@@ -40,6 +42,9 @@ jobs:
           fi
         done
         echo "__END__" >> $GITHUB_OUTPUT
+        if [[ $found == 0 ]] ; then
+          echo "⛔ No packages found to release"
+        fi
 
   build:
     name: Build releases
@@ -179,4 +184,4 @@ jobs:
         append_body: true
 
 # based on: github.com/koron-go/_skeleton/.github/workflows/release.yml
-# $Hash:3bffe693da4be6823eb2f09192d1a5e1e8bc6ece3a96ba8cc93d4b19$
+# $Hash:d99d1b5435452a2fc3ff949711abe87b69e047855802ec59910d7132$
