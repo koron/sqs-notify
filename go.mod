@@ -21,8 +21,8 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/gomega v1.27.1 // indirect
-	golang.org/x/net v0.42.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	gopkg.in/bsm/ratelimit.v1 v1.0.0-20160220154919-db14e161995a // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 )
