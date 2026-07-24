@@ -10,7 +10,7 @@ require (
 	github.com/koron/go-valid v1.0.0
 	github.com/koron/hupwriter v1.0.0
 	github.com/vaughan0/go-ini v0.0.0-20130923145212-a98ad7ee00ec
-	golang.org/x/sync v0.21.0
+	golang.org/x/sync v0.22.0
 	gopkg.in/redis.v3 v3.6.4
 )
 
