@@ -2,16 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
 const maxSend = 10
@@ -50,8 +51,8 @@ func main() {
 	}
 }
 
-func ensureQueue(ctx context.Context, q *sqs.SQS, qn string) (*string, error) {
-	rGet, err := q.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{
+func ensureQueue(ctx context.Context, q *sqs.Client, qn string) (*string, error) {
+	rGet, err := q.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
 		QueueName: aws.String(qn),
 	})
 	if err == nil {
@@ -60,7 +61,7 @@ func ensureQueue(ctx context.Context, q *sqs.SQS, qn string) (*string, error) {
 	if !isQueueDoesNotExist(err) {
 		return nil, err
 	}
-	rCreate, err := q.CreateQueueWithContext(ctx, &sqs.CreateQueueInput{
+	rCreate, err := q.CreateQueue(ctx, &sqs.CreateQueueInput{
 		QueueName: aws.String(qn),
 	})
 	if err != nil {
@@ -69,23 +70,20 @@ func ensureQueue(ctx context.Context, q *sqs.SQS, qn string) (*string, error) {
 	return rCreate.QueueUrl, nil
 }
 
-func isQueueDoesNotExist(err0 error) bool {
-	err, ok := err0.(awserr.Error)
-	if !ok {
-		return false
-	}
-	return err.Code() == sqs.ErrCodeQueueDoesNotExist
+func isQueueDoesNotExist(err error) bool {
+	var qne *types.QueueDoesNotExist
+	return errors.As(err, &qne)
 }
 
-func sendQueue(ctx context.Context, q *sqs.SQS, qurl *string, msgs []string) error {
-	entries := make([]*sqs.SendMessageBatchRequestEntry, 0, len(msgs))
+func sendQueue(ctx context.Context, q *sqs.Client, qurl *string, msgs []string) error {
+	entries := make([]types.SendMessageBatchRequestEntry, 0, len(msgs))
 	for i, m := range msgs {
-		entries = append(entries, &sqs.SendMessageBatchRequestEntry{
+		entries = append(entries, types.SendMessageBatchRequestEntry{
 			Id:          aws.String(strconv.Itoa(i)),
 			MessageBody: aws.String(m),
 		})
 	}
-	_, err := q.SendMessageBatchWithContext(ctx, &sqs.SendMessageBatchInput{
+	_, err := q.SendMessageBatch(ctx, &sqs.SendMessageBatchInput{
 		Entries:  entries,
 		QueueUrl: qurl,
 	})
@@ -95,23 +93,26 @@ func sendQueue(ctx context.Context, q *sqs.SQS, qurl *string, msgs []string) err
 	return nil
 }
 
-func newSQS() (*sqs.SQS, error) {
-	cfg := aws.NewConfig()
-	if endpoint != "" {
-		cfg.WithEndpoint(endpoint)
-	}
+func newSQS(ctx context.Context) (*sqs.Client, error) {
+	var opts []func(*config.LoadOptions) error
 	if region != "" {
-		cfg.WithRegion(region)
+		opts = append(opts, config.WithRegion(region))
 	}
-	ses, err := session.NewSession(cfg)
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return sqs.New(ses), nil
+	var sqsOpts []func(*sqs.Options)
+	if endpoint != "" {
+		sqsOpts = append(sqsOpts, func(o *sqs.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+		})
+	}
+	return sqs.NewFromConfig(cfg, sqsOpts...), nil
 }
 
 func sendMessages(ctx context.Context) error {
-	q, err := newSQS()
+	q, err := newSQS(ctx)
 	if err != nil {
 		return err
 	}

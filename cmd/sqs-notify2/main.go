@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	valid "github.com/koron/go-valid"
 	"github.com/koron/hupwriter"
 	"github.com/koron/sqs-notify/sqsnotify2"
@@ -172,13 +171,7 @@ func main2() error {
 }
 
 func isCancel(err error) bool {
-	if err2, ok := err.(awserr.Error); ok {
-		err = err2.OrigErr()
-	}
-	if err == context.Canceled {
-		return true
-	}
-	return false
+	return errors.Is(err, context.Canceled)
 }
 
 func main() {
