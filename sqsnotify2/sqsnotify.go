@@ -8,10 +8,10 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/koron/sqs-notify/sqsnotify2/stage"
 	"golang.org/x/sync/semaphore"
 )
@@ -48,16 +48,19 @@ func (sn *SQSNotify) log() *log.Logger {
 
 func (sn *SQSNotify) logResult(r *result) {
 	if r.err == nil {
-		sn.log().Printf("\tEXECUTED\tbody:%#v", *r.msg.Body)
+		body := ""
+		if r.msg.Body != nil {
+			body = *r.msg.Body
+		}
+		sn.log().Printf("\tEXECUTED\tbody:%#v", body)
 		return
 	}
 	sn.log().Printf("\tNOT_EXECUTED\tstage:%[2]s error:%[1]s", r.err, r.stg)
 }
 
 // Run runs SQS notification service.
-// ctx is not supported yet.
 func (sn *SQSNotify) Run(ctx context.Context, cache Cache) error {
-	svc, err := sn.newSQS()
+	svc, err := sn.newSQS(ctx)
 	if err != nil {
 		return err
 	}
@@ -66,28 +69,32 @@ func (sn *SQSNotify) Run(ctx context.Context, cache Cache) error {
 	return sn.run(ctx, svc)
 }
 
-func (sn *SQSNotify) newSQS() (*sqs.SQS, error) {
-	s, err := session.NewSessionWithOptions(session.Options{
-		Profile: sn.Profile,
-	})
+func (sn *SQSNotify) newSQS(ctx context.Context) (*sqs.Client, error) {
+	var opts []func(*config.LoadOptions) error
+	if sn.Profile != "" {
+		opts = append(opts, config.WithSharedConfigProfile(sn.Profile))
+	}
+	if sn.Region != "" {
+		opts = append(opts, config.WithRegion(sn.Region))
+	}
+	if sn.MaxRetries > 0 {
+		opts = append(opts, config.WithRetryMaxAttempts(sn.MaxRetries))
+	}
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
-	cfg := aws.NewConfig()
-	if sn.Region != "" {
-		cfg.WithRegion(sn.Region)
-	}
-	if sn.MaxRetries > 0 {
-		cfg.WithMaxRetries(sn.MaxRetries)
-	}
+	var sqsOpts []func(*sqs.Options)
 	if sn.Endpoint != "" {
-		cfg.WithEndpoint(sn.Endpoint)
+		sqsOpts = append(sqsOpts, func(o *sqs.Options) {
+			o.BaseEndpoint = aws.String(sn.Endpoint)
+		})
 	}
-	return sqs.New(s, cfg), nil
+	return sqs.NewFromConfig(cfg, sqsOpts...), nil
 }
 
-func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
-	qu, err := getQueueURL(api, sn.QueueName, sn.CreateQueue)
+func (sn *SQSNotify) run(ctx context.Context, api SQSClient) error {
+	qu, err := getQueueURL(ctx, api, sn.QueueName, sn.CreateQueue)
 	if err != nil {
 		return err
 	}
@@ -104,11 +111,11 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 			continue
 		}
 
-		// remove messsages first when RemovePolicy == BeforeExecution
+		// remove messages first when RemovePolicy == BeforeExecution
 		if sn.RemovePolicy == BeforeExecution {
-			entries := make([]*sqs.DeleteMessageBatchRequestEntry, 0, len(msgs))
+			entries := make([]types.DeleteMessageBatchRequestEntry, 0, len(msgs))
 			for _, m := range msgs {
-				entries = append(entries, &sqs.DeleteMessageBatchRequestEntry{
+				entries = append(entries, types.DeleteMessageBatchRequestEntry{
 					Id:            m.MessageId,
 					ReceiptHandle: m.ReceiptHandle,
 				})
@@ -130,7 +137,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 				continue
 			}
 			wg.Add(1)
-			go func(r, n int, m *sqs.Message, res *result) {
+			go func(r, n int, m types.Message, res *result) {
 				defer wg.Done()
 				res.stg = stage.Lock
 				err := sem.Acquire(ctx, 1)
@@ -145,7 +152,7 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 					sn.addResult(res.withErr(err))
 					return
 				}
-				err = sn.execCmd(ctx, m)
+				err = sn.execCmd(ctx, &m)
 				if err != nil {
 					sn.addResult(res.withErr(err))
 					return
@@ -171,13 +178,13 @@ func (sn *SQSNotify) run(ctx context.Context, api sqsiface.SQSAPI) error {
 	}
 }
 
-func (sn *SQSNotify) deleteEntries() []*sqs.DeleteMessageBatchRequestEntry {
-	var entries []*sqs.DeleteMessageBatchRequestEntry
+func (sn *SQSNotify) deleteEntries() []types.DeleteMessageBatchRequestEntry {
+	var entries []types.DeleteMessageBatchRequestEntry
 	for _, r := range sn.results {
 		if !sn.shouldRemoveAfter(r) {
 			continue
 		}
-		entries = append(entries, &sqs.DeleteMessageBatchRequestEntry{
+		entries = append(entries, types.DeleteMessageBatchRequestEntry{
 			Id:            r.msg.MessageId,
 			ReceiptHandle: r.msg.ReceiptHandle,
 		})
@@ -187,6 +194,9 @@ func (sn *SQSNotify) deleteEntries() []*sqs.DeleteMessageBatchRequestEntry {
 
 func (sn *SQSNotify) cacheInsert(r *result, stg stage.Stage) error {
 	r.stg = stg
+	if r.msg.MessageId == nil {
+		return nil
+	}
 	err := sn.cache.Insert(*r.msg.MessageId, stg)
 	if err != nil {
 		return err
@@ -196,6 +206,9 @@ func (sn *SQSNotify) cacheInsert(r *result, stg stage.Stage) error {
 
 func (sn *SQSNotify) cacheUpdate(r *result, stg stage.Stage) error {
 	r.stg = stg
+	if r.msg.MessageId == nil {
+		return nil
+	}
 	err := sn.cache.Update(*r.msg.MessageId, stg)
 	if err != nil {
 		// FIXME: consider errCacheNotFound
@@ -212,7 +225,11 @@ func (sn *SQSNotify) shouldRemoveAfter(r *result) bool {
 		return r.err == nil
 	case IgnoreFailure:
 		if r.stg == stage.Exec {
-			sn.log().Printf("command failed but message is deleted: id=%s err=%s", *r.msg.MessageId, r.err)
+			msgID := ""
+			if r.msg.MessageId != nil {
+				msgID = *r.msg.MessageId
+			}
+			sn.log().Printf("command failed but message is deleted: id=%s err=%s", msgID, r.err)
 			return true
 		}
 		return r.err == nil
@@ -222,7 +239,7 @@ func (sn *SQSNotify) shouldRemoveAfter(r *result) bool {
 }
 
 // execCmd executes a command for a message, and returns its exit code.
-func (sn *SQSNotify) execCmd(ctx context.Context, m *sqs.Message) error {
+func (sn *SQSNotify) execCmd(ctx context.Context, m *types.Message) error {
 	if sn.Timeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, sn.Timeout)
@@ -247,7 +264,11 @@ func (sn *SQSNotify) execCmd(ctx context.Context, m *sqs.Message) error {
 	}
 	go func() {
 		defer stdin.Close()
-		_, err := io.WriteString(stdin, *m.Body)
+		body := ""
+		if m.Body != nil {
+			body = *m.Body
+		}
+		_, err := io.WriteString(stdin, body)
 		if err != nil {
 			sn.handleCopyMessageFailure(err, m)
 		}
@@ -260,15 +281,20 @@ func (sn *SQSNotify) execCmd(ctx context.Context, m *sqs.Message) error {
 	return nil
 }
 
-func (sn *SQSNotify) receiveQ(ctx context.Context, api sqsiface.SQSAPI, queueURL *string, max int64) ([]*sqs.Message, error) {
-	msgs, err := receiveMessages(ctx, api, queueURL, maxMsg, sn.WaitTime)
+func (sn *SQSNotify) receiveQ(ctx context.Context, api SQSClient, queueURL *string, max int32) ([]types.Message, error) {
+	var wt *int32
+	if sn.WaitTime != nil {
+		v := int32(*sn.WaitTime)
+		wt = &v
+	}
+	msgs, err := receiveMessages(ctx, api, queueURL, max, wt)
 	if err != nil {
 		return nil, err
 	}
 	return msgs, nil
 }
 
-func (sn *SQSNotify) deleteQ(ctx context.Context, api sqsiface.SQSAPI, queueURL *string, entries []*sqs.DeleteMessageBatchRequestEntry) error {
+func (sn *SQSNotify) deleteQ(ctx context.Context, api SQSClient, queueURL *string, entries []types.DeleteMessageBatchRequestEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -285,8 +311,12 @@ func (sn *SQSNotify) deleteQ(ctx context.Context, api sqsiface.SQSAPI, queueURL 
 	return nil
 }
 
-func (sn *SQSNotify) handleCopyMessageFailure(err error, m *sqs.Message) {
-	sn.log().Printf("failed to pass message body: id=%s err=%s", *m.MessageId, err)
+func (sn *SQSNotify) handleCopyMessageFailure(err error, m *types.Message) {
+	msgID := ""
+	if m.MessageId != nil {
+		msgID = *m.MessageId
+	}
+	sn.log().Printf("failed to pass message body: id=%s err=%s", msgID, err)
 }
 
 func (sn *SQSNotify) newWeighted() *semaphore.Weighted {
@@ -313,7 +343,7 @@ func (sn *SQSNotify) addResult(r *result) {
 type result struct {
 	round int
 	index int
-	msg   *sqs.Message
+	msg   types.Message
 	stg   stage.Stage
 	err   error
 }
