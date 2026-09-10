@@ -1,3 +1,4 @@
+// Package sqsnotify provides sqs-notify (1) core feature.
 package sqsnotify
 
 import (

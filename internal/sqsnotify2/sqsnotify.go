@@ -1,7 +1,10 @@
+// Package sqsnotify2 provides sqs-notify2 core feature.
 package sqsnotify2
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -12,7 +15,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/koron/sqs-notify/sqsnotify2/stage"
+	"github.com/aws/smithy-go"
+	"github.com/koron/sqs-notify/internal/cache"
+	"github.com/koron/sqs-notify/internal/stage"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -26,7 +31,7 @@ type SQSNotify struct {
 
 	l       sync.Mutex
 	results []*result
-	cache   Cache
+	cache   cache.Cache
 }
 
 // New creates a SQSNotify object with configuration.
@@ -59,7 +64,7 @@ func (sn *SQSNotify) logResult(r *result) {
 }
 
 // Run runs SQS notification service.
-func (sn *SQSNotify) Run(ctx context.Context, cache Cache) error {
+func (sn *SQSNotify) Run(ctx context.Context, cache cache.Cache) error {
 	svc, err := sn.newSQS(ctx)
 	if err != nil {
 		return err
@@ -93,15 +98,48 @@ func (sn *SQSNotify) newSQS(ctx context.Context) (*sqs.Client, error) {
 	return sqs.NewFromConfig(cfg, sqsOpts...), nil
 }
 
-func (sn *SQSNotify) run(ctx context.Context, api SQSClient) error {
-	qu, err := getQueueURL(ctx, api, sn.QueueName, sn.CreateQueue)
+func isQueueDoesNotExist(err error) bool {
+	var qne *types.QueueDoesNotExist
+	if errors.As(err, &qne) {
+		return true
+	}
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code := apiErr.ErrorCode()
+		return code == "AWS.SimpleQueueService.NonExistentQueue" || code == "QueueDoesNotExist"
+	}
+	return false
+}
+
+func (sn *SQSNotify) ensureQueue(ctx context.Context, client *sqs.Client) (string, error) {
+	rGet, err := client.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
+		QueueName: aws.String(sn.QueueName),
+	})
+	if err == nil {
+		return *rGet.QueueUrl, nil
+	}
+	if !sn.CreateQueue || !isQueueDoesNotExist(err) {
+		return "", err
+	}
+
+	rCreate, err := client.CreateQueue(ctx, &sqs.CreateQueueInput{
+		QueueName: aws.String(sn.QueueName),
+	})
+	if err != nil {
+		return "", err
+	}
+	return *rCreate.QueueUrl, nil
+}
+
+func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
+	qu, err := sn.ensureQueue(ctx, client)
 	if err != nil {
 		return err
 	}
 	var round = 0
 	for {
 		// receive messages.
-		msgs, err := sn.receiveQ(ctx, api, qu, maxMsg)
+		msgs, err := sn.receiveQ(ctx, client, &qu, maxMsg)
 		if err != nil {
 			return err
 		}
@@ -120,7 +158,7 @@ func (sn *SQSNotify) run(ctx context.Context, api SQSClient) error {
 					ReceiptHandle: m.ReceiptHandle,
 				})
 			}
-			err := sn.deleteQ(ctx, api, qu, entries)
+			err := sn.deleteQ(ctx, client, &qu, entries)
 			if err != nil {
 				return err
 			}
@@ -169,7 +207,7 @@ func (sn *SQSNotify) run(ctx context.Context, api SQSClient) error {
 		wg.Wait()
 
 		// delete messages
-		err = sn.deleteQ(ctx, api, qu, sn.deleteEntries())
+		err = sn.deleteQ(ctx, client, &qu, sn.deleteEntries())
 		if err != nil {
 			return err
 		}
@@ -281,33 +319,48 @@ func (sn *SQSNotify) execCmd(ctx context.Context, m *types.Message) error {
 	return nil
 }
 
-func (sn *SQSNotify) receiveQ(ctx context.Context, api SQSClient, queueURL *string, max int32) ([]types.Message, error) {
-	var wt *int32
-	if sn.WaitTime != nil {
-		v := int32(*sn.WaitTime)
-		wt = &v
+func (sn *SQSNotify) receiveQ(ctx context.Context, client *sqs.Client, queueURL *string, max int32) ([]types.Message, error) {
+	input := &sqs.ReceiveMessageInput{
+		QueueUrl:            queueURL,
+		MaxNumberOfMessages: max,
 	}
-	msgs, err := receiveMessages(ctx, api, queueURL, max, wt)
+	if sn.WaitTime != nil {
+		input.WaitTimeSeconds = int32(*sn.WaitTime)
+	}
+	out, err := client.ReceiveMessage(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	return msgs, nil
+	return out.Messages, nil
 }
 
-func (sn *SQSNotify) deleteQ(ctx context.Context, api SQSClient, queueURL *string, entries []types.DeleteMessageBatchRequestEntry) error {
+type DeleteFailure struct {
+	Failed []types.BatchResultErrorEntry
+}
+
+func (df *DeleteFailure) Error() string {
+	return fmt.Sprintf("failed to delete %d messages", len(df.Failed))
+}
+
+func (sn *SQSNotify) deleteQ(ctx context.Context, client *sqs.Client, queueURL *string, entries []types.DeleteMessageBatchRequestEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
-	err := deleteMessages(ctx, api, queueURL, entries)
+
+	out, err := client.DeleteMessageBatch(ctx, &sqs.DeleteMessageBatchInput{
+		QueueUrl: queueURL,
+		Entries:  entries,
+	})
 	if err != nil {
-		if f, ok := err.(*deleteFailure); ok {
-			// TODO: retry or skip failed entries.
-			// 1. "not exists" be skipped (ignored)
-			// 2. others are retried or logged
-			_ = f
-		}
 		return err
 	}
+	if len(out.Failed) > 0 {
+		// TODO: retry or skip failed entries.
+		// 1. "not exists" be skipped (ignored)
+		// 2. others are retried or logged
+		return &DeleteFailure{Failed: out.Failed}
+	}
+
 	return nil
 }
 
