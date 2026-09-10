@@ -45,7 +45,7 @@ func testCache(t *testing.T, c Cache) {
 func TestRedisCache(t *testing.T) {
 	s := os.Getenv("REDIS_URL")
 	if s == "" {
-		t.Skip("skipping test because REDIS_URL isn't given")
+		t.Skip("skipped, because REDIS_URL isn't given")
 		return
 	}
 	u, err := url.Parse(s)
@@ -65,5 +65,22 @@ func TestRedisCache(t *testing.T) {
 
 func TestMemoryCache(t *testing.T) {
 	mc := newMemoryCache(minCapacity)
+	testCache(t, mc)
+}
+
+func TestNewCacheMemory(t *testing.T) {
+	c, err := NewCache(context.Background(), "memory://?capacity=1234")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mc, ok := c.(*memoryCache)
+	if !ok {
+		t.Fatalf("unexpected cache type: %T", c)
+	}
+	if mc.c != 1234 {
+		t.Errorf("unexpected capacity: want=%d got=%d", 1234, mc.c)
+	}
+
 	testCache(t, mc)
 }
