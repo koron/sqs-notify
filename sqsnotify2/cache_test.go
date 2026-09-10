@@ -2,11 +2,11 @@ package sqsnotify2
 
 import (
 	"context"
+	"fmt"
 	"net/url"
-	"os"
 	"testing"
-	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/koron/sqs-notify/sqsnotify2/stage"
 )
 
@@ -43,22 +43,18 @@ func testCache(t *testing.T, c Cache) {
 }
 
 func TestRedisCache(t *testing.T) {
-	s := os.Getenv("REDIS_URL")
-	if s == "" {
-		t.Skip("skipped, because REDIS_URL isn't given")
-		return
-	}
+	m := miniredis.RunT(t)
+	s := fmt.Sprintf("redis://%s/?prefix=%s&lifetime=10s", m.Addr(), t.Name())
 	u, err := url.Parse(s)
 	if err != nil {
-		t.Fatalf("failed to parse REDIS_URL: %v", err)
+		t.Fatalf("failed to parse as URL %q: %v", s, err)
 	}
+
 	rc, err := newRedisCache(context.Background(), u)
 	if err != nil {
 		t.Fatalf("failed to create redisCache: %v", err)
 	}
-	defer rc.Close()
-	rc.prefix = t.Name()
-	rc.lifetime = 10 * time.Second
+	t.Cleanup(func() { rc.Close() })
 
 	testCache(t, rc)
 }
