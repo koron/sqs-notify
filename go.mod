@@ -1,4 +1,4 @@
-module github.com/koron/sqs-notify
+module github.com/koron/sqs-notify/v2
 
 go 1.26.0
 

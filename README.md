@@ -1,6 +1,6 @@
 # SQS notify
 
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/koron/sqs-notify)](https://pkg.go.dev/github.com/koron/sqs-notify)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/koron/sqs-notify/v2)](https://pkg.go.dev/github.com/koron/sqs-notify/v2)
 [![Actions/Go](https://github.com/koron/sqs-notify/workflows/Go/badge.svg)](https://github.com/koron/sqs-notify/actions?query=workflow%3AGo)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/koron/sqs-notify)
 
@@ -14,7 +14,7 @@ For old version (v1), check [doc/v1.md](./doc/v1.md).
 Install and upgrade.
 
 ```console
-$ go install github.com/koron/sqs-notify/cmd/sqs-notify2@latest
+$ go install github.com/koron/sqs-notify/v2/cmd/sqs-notify2@latest
 ```
 
 ## Environment variables

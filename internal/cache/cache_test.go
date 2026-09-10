@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/koron/sqs-notify/internal/stage"
+	"github.com/koron/sqs-notify/v2/internal/stage"
 )
 
 func testCache(t *testing.T, c Cache) {
