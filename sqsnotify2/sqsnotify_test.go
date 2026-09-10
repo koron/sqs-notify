@@ -64,24 +64,24 @@ func setupGoAWSServer(t *testing.T) (*servertest.Server, *sqs.Client) {
 		o.BaseEndpoint = aws.String(srv.URL())
 	})
 
+	t.Cleanup(func() { srv.Quit() })
 	return srv, sqsClient
 }
 
-func TestSQSNotifyWithGoAWS(t *testing.T) {
+func TestSQSNotify(t *testing.T) {
 	os.Setenv("GO_WANT_HELPER_PROCESS", "1")
 	os.Setenv("AWS_ACCESS_KEY_ID", "mock_access_key")
 	os.Setenv("AWS_SECRET_ACCESS_KEY", "mock_secret_key")
 	os.Setenv("AWS_EC2_METADATA_DISABLED", "true")
-	defer func() {
+	t.Cleanup(func() {
 		os.Unsetenv("GO_WANT_HELPER_PROCESS")
 		os.Unsetenv("AWS_ACCESS_KEY_ID")
 		os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 		os.Unsetenv("AWS_EC2_METADATA_DISABLED")
-	}()
+	})
 
 	t.Run("CreateQueue and Process Message with Succeed Policy", func(t *testing.T) {
 		srv, sqsClient := setupGoAWSServer(t)
-		defer srv.Quit()
 
 		queueName := "test-goaws-create-queue"
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -146,7 +146,6 @@ func TestSQSNotifyWithGoAWS(t *testing.T) {
 
 	t.Run("Existing Queue and BeforeExecution Policy", func(t *testing.T) {
 		srv, sqsClient := setupGoAWSServer(t)
-		defer srv.Quit()
 
 		queueName := "test-goaws-before-execution"
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -192,6 +191,8 @@ func TestSQSNotifyWithGoAWS(t *testing.T) {
 
 		time.Sleep(500 * time.Millisecond)
 
+		// TODO: Confirm that actual message deletion is occurring.
+
 		runCancel()
 		runErr := <-errCh
 		if runErr != nil && !errorsIsCanceled(runErr) {
@@ -201,7 +202,6 @@ func TestSQSNotifyWithGoAWS(t *testing.T) {
 
 	t.Run("Existing Queue and IgnoreFailure Policy", func(t *testing.T) {
 		srv, sqsClient := setupGoAWSServer(t)
-		defer srv.Quit()
 
 		queueName := "test-goaws-ignore-failure"
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -246,6 +246,8 @@ func TestSQSNotifyWithGoAWS(t *testing.T) {
 		}
 
 		time.Sleep(500 * time.Millisecond)
+
+		// TODO: Confirm that actual message deletion is occurring.
 
 		runCancel()
 		runErr := <-errCh
