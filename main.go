@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"time"
 
 	valid "github.com/koron/go-valid"
 	"github.com/koron/hupwriter"
@@ -70,15 +71,24 @@ func main2() error {
 	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
 	flag.Var(valid.Int(&multiplier, 1).Min(1), "multiplier", `pooling the SQS in multiple runner`)
 	flag.DurationVar(&cfg.Timeout, "timeout", 0, "timeout for command execution (default 0 - no timeout)")
+
 	flag.Var(valid.String(&removePolicy, rpSucceed).
 		OneOf(rpSucceed, rpIgnoreFailure, rpBeforeExecution), "remove-policy",
 		`policy to remove messages from SQS
  * succeed          : after execution, succeeded (default)
  * ignore_failure   : after execution, ignore its result
  * before_execution : before execution`)
+
+	flag.BoolVar(&cfg.AutoExtend, "auto-extend", false, `enables automatic message visibility extension`)
+	flag.Var(valid.Float64(&cfg.AutoExtendFactor, 2.0).Min(1.0).Max(10.0),
+		"auto-extend-factor", `multiplier for extending the visibility timeout exponentially`)
+	flag.Var(valid.Duration(&cfg.AutoExtendMax, 64*time.Minute).Min(time.Minute).Max(4*time.Hour),
+		"auto-extend-max", `maximum visibility timeout allowed for a single extension call`)
+
 	flag.BoolVar(&version, "version", false, "show version")
 	flag.StringVar(&logfile, "logfile", "", "log file path")
 	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
+
 	if err := valid.Parse(flag.CommandLine, os.Args[1:]); err != nil {
 		return err
 	}

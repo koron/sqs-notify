@@ -9,7 +9,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -32,6 +34,11 @@ type SQSNotify struct {
 	l       sync.Mutex
 	results []*result
 	cache   cache.Cache
+
+	sqsClient *sqs.Client
+	queueURL  string
+
+	queueVisibilityTimeout time.Duration
 }
 
 // New creates a SQSNotify object with configuration.
@@ -40,7 +47,8 @@ func New(cfg *Config) *SQSNotify {
 		cfg = NewConfig()
 	}
 	return &SQSNotify{
-		Config: *cfg,
+		Config:                 *cfg,
+		queueVisibilityTimeout: 30 * time.Second,
 	}
 }
 
@@ -70,6 +78,7 @@ func (sn *SQSNotify) Run(ctx context.Context, cache cache.Cache) error {
 		return err
 	}
 	sn.cache = cache
+	sn.sqsClient = svc
 
 	return sn.run(ctx, svc)
 }
@@ -136,6 +145,28 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 	if err != nil {
 		return err
 	}
+	sn.queueURL = qu
+
+	// Get visibility timeout.
+	if sn.AutoExtend {
+		out, err := client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+			QueueUrl: &qu,
+			AttributeNames: []types.QueueAttributeName{
+				types.QueueAttributeNameVisibilityTimeout,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		if timeout, ok := out.Attributes[string(types.QueueAttributeNameVisibilityTimeout)]; ok {
+			sec, err := strconv.Atoi(timeout)
+			if err != nil {
+				return err
+			}
+			sn.queueVisibilityTimeout = time.Duration(sec) * time.Second
+		}
+	}
+
 	var round = 0
 	for {
 		// receive messages.
@@ -162,6 +193,21 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 			if err != nil {
 				return err
 			}
+		}
+
+		// Start the loop for auto extension of visibility timeout
+		var extendCancel context.CancelFunc = func() {}
+		if sn.AutoExtend && sn.RemovePolicy != BeforeExecution {
+			entries := make([]types.ChangeMessageVisibilityBatchRequestEntry, len(msgs))
+			for i, m := range msgs {
+				entries[i] = types.ChangeMessageVisibilityBatchRequestEntry{
+					Id:            m.MessageId,
+					ReceiptHandle: m.ReceiptHandle,
+				}
+			}
+			extendCtx, cancel := context.WithCancel(ctx)
+			extendCancel = cancel
+			go sn.autoExtendQLoop(extendCtx, entries)
 		}
 
 		// run as commands
@@ -205,6 +251,7 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 			}(round, i, m, res)
 		}
 		wg.Wait()
+		extendCancel()
 
 		// delete messages
 		err = sn.deleteQ(ctx, client, &qu, sn.deleteEntries())
@@ -332,6 +379,37 @@ func (sn *SQSNotify) receiveQ(ctx context.Context, client *sqs.Client, queueURL 
 		return nil, err
 	}
 	return out.Messages, nil
+}
+
+func (sn *SQSNotify) autoExtendQLoop(ctx context.Context, entries []types.ChangeMessageVisibilityBatchRequestEntry) {
+	currTimeout := sn.queueVisibilityTimeout
+	for {
+		wait := max(currTimeout*4/5, currTimeout-15*time.Second)
+		if wait < time.Second {
+			wait = time.Second
+		}
+		// Wait for the specified time to elapse or for the context to be stopped.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+		// Extend visibility timeout of the message.
+		next := min(time.Duration(float64(currTimeout)*sn.AutoExtendFactor), sn.AutoExtendMax, 12*time.Hour)
+		nextSec := int32(next.Seconds())
+		for i := range entries {
+			entries[i].VisibilityTimeout = nextSec
+		}
+		_, err := sn.sqsClient.ChangeMessageVisibilityBatch(ctx, &sqs.ChangeMessageVisibilityBatchInput{
+			Entries:  entries,
+			QueueUrl: &sn.queueURL,
+		})
+		if err != nil {
+			sn.log().Printf("failed to extend message visibility timeout: err=%s", err)
+			return
+		}
+		currTimeout = next
+	}
 }
 
 type DeleteFailure struct {
