@@ -154,6 +154,9 @@ func TestSQSNotify(t *testing.T) {
 
 		createRes, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
 			QueueName: aws.String(queueName),
+			Attributes: map[string]string{
+				"VisibilityTimeout": "30",
+			},
 		})
 		if err != nil {
 			t.Fatalf("failed to create queue: %v", err)
@@ -210,6 +213,9 @@ func TestSQSNotify(t *testing.T) {
 
 		createRes, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
 			QueueName: aws.String(queueName),
+			Attributes: map[string]string{
+				"VisibilityTimeout": "30",
+			},
 		})
 		if err != nil {
 			t.Fatalf("failed to create queue: %v", err)
@@ -254,6 +260,150 @@ func TestSQSNotify(t *testing.T) {
 		runErr := <-errCh
 		if runErr != nil && !errorsIsCanceled(runErr) {
 			t.Fatalf("SQSNotify.Run returned unexpected error: %v", runErr)
+		}
+	})
+
+	t.Run("AutoExtend Enabled - Fetches Queue VisibilityTimeout and Processes Message", func(t *testing.T) {
+		srv, sqsClient := setupGoAWSServer(t)
+
+		queueName := "test-goaws-auto-extend"
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		createRes, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
+			QueueName: aws.String(queueName),
+			Attributes: map[string]string{
+				"VisibilityTimeout": "30",
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to create queue: %v", err)
+		}
+
+		wt := int64(1)
+		cfg := NewConfig()
+		cfg.Endpoint = srv.URL()
+		cfg.Region = "us-east-1"
+		cfg.QueueName = queueName
+		cfg.CreateQueue = false
+		cfg.CmdName = os.Args[0]
+		cfg.CmdArgs = []string{"-test.run=TestHelperProcess"}
+		cfg.RemovePolicy = Succeed
+		cfg.WaitTime = &wt
+		cfg.AutoExtend = true
+		cfg.AutoExtendFactor = 2.0
+		cfg.AutoExtendMax = 10 * time.Minute
+
+		sn := New(cfg)
+
+		runCtx, runCancel := context.WithCancel(ctx)
+		defer runCancel()
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- sn.Run(runCtx, cache.NewMemoryCache(10))
+		}()
+
+		time.Sleep(100 * time.Millisecond)
+
+		if sn.queueVisibilityTimeout <= 0 {
+			t.Errorf("expected queueVisibilityTimeout > 0, got %v", sn.queueVisibilityTimeout)
+		}
+
+		_, err = sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
+			QueueUrl:    createRes.QueueUrl,
+			MessageBody: aws.String("hello goaws auto extend"),
+		})
+		if err != nil {
+			t.Fatalf("failed to send message: %v", err)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		runCancel()
+		runErr := <-errCh
+		if runErr != nil && !errorsIsCanceled(runErr) {
+			t.Fatalf("SQSNotify.Run returned unexpected error: %v", runErr)
+		}
+	})
+
+	t.Run("AutoExtend with BeforeExecution Policy Skips Extension Loop", func(t *testing.T) {
+		srv, sqsClient := setupGoAWSServer(t)
+
+		queueName := "test-goaws-auto-extend-before-exec"
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		createRes, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
+			QueueName: aws.String(queueName),
+		})
+		if err != nil {
+			t.Fatalf("failed to create queue: %v", err)
+		}
+
+		wt := int64(1)
+		cfg := NewConfig()
+		cfg.Endpoint = srv.URL()
+		cfg.Region = "us-east-1"
+		cfg.QueueName = queueName
+		cfg.CreateQueue = false
+		cfg.CmdName = os.Args[0]
+		cfg.CmdArgs = []string{"-test.run=TestHelperProcess"}
+		cfg.RemovePolicy = BeforeExecution
+		cfg.WaitTime = &wt
+		cfg.AutoExtend = true
+
+		sn := New(cfg)
+
+		runCtx, runCancel := context.WithCancel(ctx)
+		defer runCancel()
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- sn.Run(runCtx, cache.NewMemoryCache(10))
+		}()
+
+		time.Sleep(100 * time.Millisecond)
+
+		_, err = sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
+			QueueUrl:    createRes.QueueUrl,
+			MessageBody: aws.String("hello goaws auto extend before execution"),
+		})
+		if err != nil {
+			t.Fatalf("failed to send message: %v", err)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		runCancel()
+		runErr := <-errCh
+		if runErr != nil && !errorsIsCanceled(runErr) {
+			t.Fatalf("SQSNotify.Run returned unexpected error: %v", runErr)
+		}
+	})
+
+	t.Run("autoExtendQLoop Terminates on Context Cancellation", func(t *testing.T) {
+		sn := New(nil)
+		sn.queueVisibilityTimeout = 100 * time.Millisecond
+		sn.AutoExtendFactor = 2.0
+		sn.AutoExtendMax = 1 * time.Minute
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			sn.autoExtendQLoop(ctx, nil)
+			close(done)
+		}()
+
+		// Cancel context immediately
+		cancel()
+
+		select {
+		case <-done:
+			// autoExtendQLoop exited cleanly
+		case <-time.After(1 * time.Second):
+			t.Fatal("autoExtendQLoop did not terminate after context cancellation")
 		}
 	})
 }
