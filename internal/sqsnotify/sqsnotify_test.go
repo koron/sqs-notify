@@ -1,4 +1,4 @@
-package sqsnotify2
+package sqsnotify
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/koron/sqs-notify/internal/cache"
+	"github.com/koron/sqs-notify/v2/internal/cache"
 )
 
 func TestHelperProcess(t *testing.T) {

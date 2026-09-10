@@ -1,299 +1,183 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
-	"math/rand"
 	"os"
-	"os/exec"
 	"os/signal"
-	"strconv"
-	"time"
+	"sync"
 
-	"github.com/goamz/goamz/aws"
-	"github.com/goamz/goamz/sqs"
-	"github.com/koron/sqs-notify/internal/sqsnotify"
+	valid "github.com/koron/go-valid"
+	"github.com/koron/hupwriter"
+	"github.com/koron/sqs-notify/v2/internal/cache"
+	"github.com/koron/sqs-notify/v2/internal/sqsnotify"
 )
 
-const progname = "sqs-notify"
-
-var (
-	version  = "1.5.6"
-	revision = ""
+const (
+	rpSucceed         = "succeed"
+	rpIgnoreFailure   = "ignore_failure"
+	rpBeforeExecution = "before_execution"
 )
 
-type app struct {
-	logger        *log.Logger
-	auth          aws.Auth
-	region        aws.Region
-	worker        int
-	nowait        bool
-	ignoreFailure bool
-	messageCount  int
-	retryMax      int
-	jobs          jobs
-	notify        *sqsnotify.SQSNotify
-	cmd           string
-	args          []string
-
-	w *workers
-}
-
-func showVersion() {
-	v := version
-	if revision != "" {
-		v = fmt.Sprintf("%s (rev:%s)", version, revision)
-	}
-	fmt.Printf("%s version %s\n", progname, v)
-	os.Exit(1)
-}
-
-func usage() {
-	fmt.Printf(`Usage: %s [OPTIONS] {queue name} {command and args...}
-
-OPTIONS:
-`, progname)
-	flag.PrintDefaults()
-	fmt.Println("\nSource: https://github.com/koron/sqs-notify")
-	os.Exit(1)
-}
-
-func retryDuration(c int) time.Duration {
-	limit := (1 << uint(c)) - 1
-	if limit > 50 {
-		limit = 50
-	}
-	v := rand.Intn(limit)
-	return time.Duration(v*200) * time.Millisecond
-}
-
-func (a *app) log(v ...interface{}) {
-	if a.logger == nil {
-		return
-	}
-	a.logger.Print(v...)
-}
-
-func (a *app) logf(s string, args ...interface{}) {
-	if a.logger == nil {
-		return
-	}
-	a.logger.Printf(s, args...)
-}
-
-func (a *app) logOk(m string, r workerResult) {
-	if a.logger == nil {
-		return
-	}
-	// Log as OK.
-	a.logger.Printf("\tEXECUTED\tqueue:%s\tbody:%#v\tcmd:%s\tstatus:%d",
-		a.notify.Name(), m, a.cmd, r.Code)
-}
-
-func (a *app) logSkip(m string) {
-	if a.logger == nil {
-		return
-	}
-	// Log as SKIP.
-	a.logger.Printf("\tSKIPPED\tqueue:%s\tbody:%#v\t", a.notify.Name(), m)
-}
-
-func (a *app) logNg(m string, err error) {
-	if a.logger == nil {
-		return
-	}
-	a.logger.Printf("\tNOT_EXECUTED\tqueue:%s\tbody:%#v\terror:%s",
-		a.notify.Name(), m, err)
-}
-
-func (a *app) logAbort(err error) {
-	s := a.errorSQS(err)
-	a.log("abort:", s)
-	log.Println("sqs-notify (abort):", s)
-}
-
-func (a *app) logRetry(err error) {
-	s := a.errorSQS(err)
-	a.log("retry:", s)
-	log.Println("sqs-notify (retry):", s)
-}
-
-func (a *app) errorSQS(err error) string {
-	switch err := err.(type) {
-	case *sqs.Error:
-		return fmt.Sprintf("%s (Code:%s, RequestId:%s)",
-			err.Message, err.Code, err.RequestId)
+func toRP(s string) sqsnotify.RemovePolicy {
+	switch s {
 	default:
-		return err.Error()
+		fallthrough
+	case rpSucceed:
+		return sqsnotify.Succeed
+	case rpIgnoreFailure:
+		return sqsnotify.IgnoreFailure
+	case rpBeforeExecution:
+		return sqsnotify.BeforeExecution
 	}
 }
 
-func (a *app) deleteSQSMessage(m *sqsnotify.SQSMessage) {
-	a.notify.ReserveDelete(m)
-}
+func main2() error {
+	var (
+		cfg     = sqsnotify.NewConfig()
+		version bool
+		logfile string
+		pidfile string
 
-func (a *app) messageID(m *sqsnotify.SQSMessage) string {
-	return m.ID()
-}
+		waitTimeSec  int64
+		removePolicy string
+		multiplier   int
+	)
 
-func (a *app) run() (err error) {
-	// Open a queue.
-	sqsnotify.MessageCount = a.messageCount
-	err = a.notify.Open()
-	if err != nil {
-		return
+	flag.StringVar(&cfg.Profile, "profile", "", "AWS profile name")
+	flag.StringVar(&cfg.Region, "region", "us-east-1", "AWS region")
+	flag.StringVar(&cfg.Endpoint, "endpoint", "", "Endpoint of SQS")
+	flag.Var(valid.String(&cfg.QueueName, "").MustSet(), "queue", "SQS queue name")
+	flag.BoolVar(&cfg.CreateQueue, "createqueue", false, "create queue if not exists")
+	flag.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "max retries for AWS")
+	flag.Int64Var(&waitTimeSec, "wait-time-seconds", -1, `wait time in seconds for next polling. (default -1, disabled, use queue default)`)
+
+	flag.StringVar(&cfg.CacheName, "cache", cfg.CacheName,
+		`cache name or connection URL
+ * memory://?capacity=1000
+ * redis://[{USER}:{PASS}@]{HOST}/[{DBNUM}]?[{OPTIONS}]
+
+   DBNUM: redis DB number (default 0)
+   OPTIONS:
+	* lifetime : lifetime of cachetime (ex. "10s", "2m", "3h")
+	* prefix   : prefix of keys
+
+   Example to connect the redis on localhost: "redis://:6379"`)
+
+	flag.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
+	flag.Var(valid.Int(&multiplier, 1).Min(1), "multiplier", `pooling the SQS in multiple runner`)
+	flag.DurationVar(&cfg.Timeout, "timeout", 0, "timeout for command execution (default 0 - no timeout)")
+	flag.Var(valid.String(&removePolicy, rpSucceed).
+		OneOf(rpSucceed, rpIgnoreFailure, rpBeforeExecution), "remove-policy",
+		`policy to remove messages from SQS
+ * succeed          : after execution, succeeded (default)
+ * ignore_failure   : after execution, ignore its result
+ * before_execution : before execution`)
+	flag.BoolVar(&version, "version", false, "show version")
+	flag.StringVar(&logfile, "logfile", "", "log file path")
+	flag.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
+	if err := valid.Parse(flag.CommandLine, os.Args[1:]); err != nil {
+		return err
 	}
 
-	// Listen queue.
-	c, err := a.notify.Listen()
-	if err != nil {
-		return
+	if version {
+		fmt.Println("sqs-notify2 version:", sqsnotify.Version)
+		os.Exit(1)
 	}
-	defer a.notify.Stop()
 
-	// accept CTRL+C to terminate.
+	if flag.NArg() < 1 {
+		return errors.New("need a notification command")
+	}
+	args := flag.Args()
+	cfg.RemovePolicy = toRP(removePolicy)
+	cfg.CmdName = args[0]
+	cfg.CmdArgs = args[1:]
+	if waitTimeSec >= 0 {
+		cfg.WaitTime = &waitTimeSec
+	}
+
+	if cfg.Workers < 1 {
+		return errors.New("\"-worker\" should be greater than 0")
+	}
+	if cfg.Workers > 10 {
+		log.Print("\"WARN: -worker 10+\" doesn't have any effects, check \"-multiplier\"")
+	}
+
+	// Setup logger.
+	// FIXME: test logging features.
+	if pidfile != "" && logfile == "" {
+		return errors.New("pidfile option requires logfile option")
+	}
+	if logfile != "" {
+		if logfile == "-" {
+			cfg.Logger = log.New(os.Stdout, "", log.LstdFlags)
+		} else {
+			w, err := hupwriter.New(logfile, pidfile)
+			if err != nil {
+				return err
+			}
+			cfg.Logger = log.New(w, "", 0)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 	sig := make(chan os.Signal, 1)
 	go func() {
 		for {
 			s := <-sig
 			if s == os.Interrupt {
-				break
+				cancel()
+				signal.Stop(sig)
+				close(sig)
+				return
 			}
 		}
-		signal.Stop(sig)
-		close(sig)
-		close(c)
 	}()
 	signal.Notify(sig, os.Interrupt)
 
-	a.w = newWorkers(a.worker)
-	defer a.waitWorkers()
-
-	// Receive *sqsnotify.SQSMessage via channel.
-	retryCount := 0
-	for m := range c {
-		if m.Error != nil {
-			if retryCount >= a.retryMax {
-				a.logAbort(m.Error)
-				return errors.New("over retry: " + strconv.Itoa(retryCount))
-			}
-			a.logRetry(m.Error)
-			retryCount++
-			// sleep before retry.
-			time.Sleep(retryDuration(retryCount))
-			continue
-		} else {
-			retryCount = 0
-		}
-
-		body := *m.Body()
-		jid := a.messageID(m)
-		st, err := a.jobs.StartTry(jid)
-		if err != nil {
-			return fmt.Errorf("failed to register/start a job: %s", err)
-		}
-		switch st {
-		case jobRunning:
-			a.logSkip(body)
-			if a.nowait {
-				a.deleteSQSMessage(m)
-			}
-			continue
-		case jobCompleted:
-			a.logSkip(body)
-			a.deleteSQSMessage(m)
-			continue
-		}
-
-		// Create and setup a exec.Cmd.
-		if err := a.execCmd(m, jid, body); err != nil {
-			a.logNg(body, err)
-			a.jobs.Fail(jid)
-		}
-	}
-
-	return
-}
-
-func (a *app) waitWorkers() {
-	a.w.Wait()
-}
-
-func (a *app) execCmd(m *sqsnotify.SQSMessage, jid, body string) error {
-	// Create and setup a exec.Cmd.
-	cmd := exec.Command(a.cmd, a.args...)
-	stdin, err := cmd.StdinPipe()
+	c, err := cache.NewCache(ctx, cfg.CacheName)
 	if err != nil {
 		return err
 	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
+	defer c.Close()
 
-	if a.nowait {
-		a.deleteSQSMessage(m)
-		a.w.Run(workerJob{cmd, func(r workerResult) {
-			a.logOk(body, r)
-			if r.Success() || a.ignoreFailure {
-				a.jobs.Complete(jid)
-			} else {
-				a.jobs.Fail(jid)
-			}
-		}})
-	} else {
-		a.w.Run(workerJob{cmd, func(r workerResult) {
-			a.logOk(body, r)
-			if r.Success() || a.ignoreFailure {
-				a.jobs.Complete(jid)
-				a.deleteSQSMessage(m)
-			} else {
-				a.jobs.Fail(jid)
-			}
-		}})
-	}
+	var mu sync.Mutex
+	var errs []error
 
-	go io.Copy(os.Stdout, stdout)
-	go io.Copy(os.Stderr, stderr)
-	go func() {
-		_, err := stdin.Write([]byte(body))
-		if err != nil {
-			a.logf("\tWARN: failed to write body\tID:%s\tBODY:%s",
-				m.Message.MessageId, body)
-		}
-		_ = stdin.Close()
-	}()
+	var sg sync.WaitGroup
+	sg.Add(multiplier)
+	for i := 0; i < multiplier; i++ {
+		go func(id int) {
+			defer sg.Done()
+			err := sqsnotify.New(cfg).Run(ctx, c)
+			if isCancel(err) {
+				return
+			}
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+			log.Printf("inner process #%d is terminated by error: %s", id, err)
+		}(i)
+	}
+	sg.Wait()
+
+	if len(errs) > 0 {
+		return errs[0]
+	}
 
 	return nil
 }
 
+func isCancel(err error) bool {
+	return errors.Is(err, context.Canceled)
+}
+
 func main() {
-	c, err := getConfig()
+	err := main2()
 	if err != nil {
-		log.Fatalln("sqs-notify:", err)
-	}
-
-	if c.daemon {
-		makeDaemon()
-	}
-
-	a, err := c.toApp()
-	if err != nil {
-		log.Fatalln("sqs-notify:", err)
-	}
-	if a.jobs != nil {
-		defer a.jobs.Close()
-	}
-
-	err = a.run()
-	if err != nil {
-		log.Fatalln("sqs-notify:", err)
+		log.Fatal(err)
 	}
 }

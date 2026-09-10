@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
-	"github.com/koron/sqs-notify/internal/stage"
+	"github.com/koron/sqs-notify/v2/internal/stage"
 )
 
 type redisCache struct {

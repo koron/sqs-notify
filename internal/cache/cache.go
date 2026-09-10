@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/koron/sqs-notify/internal/stage"
+	"github.com/koron/sqs-notify/v2/internal/stage"
 )
 
-const minCapacity = 10 // sqsnotify2.maxMsg
+const minCapacity = 10 // sqsnotify.maxMsg
 
 var (
 	errCacheFound    = errors.New("cache found")
