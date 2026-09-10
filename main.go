@@ -13,7 +13,7 @@ import (
 	valid "github.com/koron/go-valid"
 	"github.com/koron/hupwriter"
 	"github.com/koron/sqs-notify/v2/internal/cache"
-	"github.com/koron/sqs-notify/v2/internal/sqsnotify2"
+	"github.com/koron/sqs-notify/v2/internal/sqsnotify"
 )
 
 const (
@@ -22,22 +22,22 @@ const (
 	rpBeforeExecution = "before_execution"
 )
 
-func toRP(s string) sqsnotify2.RemovePolicy {
+func toRP(s string) sqsnotify.RemovePolicy {
 	switch s {
 	default:
 		fallthrough
 	case rpSucceed:
-		return sqsnotify2.Succeed
+		return sqsnotify.Succeed
 	case rpIgnoreFailure:
-		return sqsnotify2.IgnoreFailure
+		return sqsnotify.IgnoreFailure
 	case rpBeforeExecution:
-		return sqsnotify2.BeforeExecution
+		return sqsnotify.BeforeExecution
 	}
 }
 
 func main2() error {
 	var (
-		cfg     = sqsnotify2.NewConfig()
+		cfg     = sqsnotify.NewConfig()
 		version bool
 		logfile string
 		pidfile string
@@ -84,7 +84,7 @@ func main2() error {
 	}
 
 	if version {
-		fmt.Println("sqs-notify2 version:", sqsnotify2.Version)
+		fmt.Println("sqs-notify2 version:", sqsnotify.Version)
 		os.Exit(1)
 	}
 
@@ -152,7 +152,7 @@ func main2() error {
 	for i := 0; i < multiplier; i++ {
 		go func(id int) {
 			defer sg.Done()
-			err := sqsnotify2.New(cfg).Run(ctx, c)
+			err := sqsnotify.New(cfg).Run(ctx, c)
 			if isCancel(err) {
 				return
 			}

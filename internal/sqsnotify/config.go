@@ -1,4 +1,4 @@
-package sqsnotify2
+package sqsnotify
 
 import (
 	"log"
@@ -18,7 +18,7 @@ const (
 	BeforeExecution = 2
 )
 
-// Config configures sqsnotify2 service
+// Config configures sqsnotify service
 type Config struct {
 	Profile     string
 	Region      string

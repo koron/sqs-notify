@@ -1,5 +1,5 @@
-// Package sqsnotify2 provides sqs-notify2 core feature.
-package sqsnotify2
+// Package sqsnotify provides sqs-notify2 core feature.
+package sqsnotify
 
 import (
 	"context"
