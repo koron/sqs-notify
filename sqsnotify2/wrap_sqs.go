@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/smithy-go"
 )
 
 // SQSClient defines the interface for SQS operations used by SQSNotify.
@@ -40,7 +41,15 @@ func getQueueURL(ctx context.Context, api SQSClient, queueName string, create bo
 
 func isQueueDoesNotExist(err error) bool {
 	var qne *types.QueueDoesNotExist
-	return errors.As(err, &qne)
+	if errors.As(err, &qne) {
+		return true
+	}
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code := apiErr.ErrorCode()
+		return code == "AWS.SimpleQueueService.NonExistentQueue" || code == "QueueDoesNotExist"
+	}
+	return false
 }
 
 func receiveMessages(ctx context.Context, api SQSClient, queueURL *string, max int32, waitTime *int32) ([]types.Message, error) {
