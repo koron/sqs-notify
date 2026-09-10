@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/koron/sqs-notify/sqsnotify2/stage"
+	"github.com/koron/sqs-notify/internal/stage"
 )
 
 const minCapacity = maxMsg

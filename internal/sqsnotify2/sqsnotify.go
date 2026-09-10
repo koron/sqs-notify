@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
-	"github.com/koron/sqs-notify/sqsnotify2/stage"
+	"github.com/koron/sqs-notify/internal/stage"
 	"golang.org/x/sync/semaphore"
 )
 

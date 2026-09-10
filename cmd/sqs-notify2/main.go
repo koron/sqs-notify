@@ -12,7 +12,7 @@ import (
 
 	valid "github.com/koron/go-valid"
 	"github.com/koron/hupwriter"
-	"github.com/koron/sqs-notify/sqsnotify2"
+	"github.com/koron/sqs-notify/internal/sqsnotify2"
 )
 
 const (

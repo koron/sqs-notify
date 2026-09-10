@@ -15,7 +15,7 @@ import (
 
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/sqs"
-	"github.com/koron/sqs-notify/sqsnotify"
+	"github.com/koron/sqs-notify/internal/sqsnotify"
 )
 
 const progname = "sqs-notify"

@@ -11,8 +11,8 @@ import (
 
 	"github.com/goamz/goamz/aws"
 	"github.com/koron/hupwriter"
-	"github.com/koron/sqs-notify/awsutil"
-	"github.com/koron/sqs-notify/sqsnotify"
+	"github.com/koron/sqs-notify/internal/awsutil"
+	"github.com/koron/sqs-notify/internal/sqsnotify"
 )
 
 const (
