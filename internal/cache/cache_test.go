@@ -1,4 +1,4 @@
-package sqsnotify2
+package cache
 
 import (
 	"context"
@@ -60,7 +60,7 @@ func TestRedisCache(t *testing.T) {
 }
 
 func TestMemoryCache(t *testing.T) {
-	mc := newMemoryCache(minCapacity)
+	mc := NewMemoryCache(minCapacity)
 	testCache(t, mc)
 }
 

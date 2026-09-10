@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/koron/sqs-notify/internal/cache"
 )
 
 func TestHelperProcess(t *testing.T) {
@@ -105,7 +106,7 @@ func TestSQSNotify(t *testing.T) {
 
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- sn.Run(runCtx, newMemoryCache(10))
+			errCh <- sn.Run(runCtx, cache.NewMemoryCache(10))
 		}()
 
 		// Wait for queue creation by SQSNotify
@@ -176,7 +177,7 @@ func TestSQSNotify(t *testing.T) {
 
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- sn.Run(runCtx, newMemoryCache(10))
+			errCh <- sn.Run(runCtx, cache.NewMemoryCache(10))
 		}()
 
 		time.Sleep(100 * time.Millisecond)
@@ -232,7 +233,7 @@ func TestSQSNotify(t *testing.T) {
 
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- sn.Run(runCtx, newMemoryCache(10))
+			errCh <- sn.Run(runCtx, cache.NewMemoryCache(10))
 		}()
 
 		time.Sleep(100 * time.Millisecond)

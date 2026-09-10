@@ -1,4 +1,4 @@
-package sqsnotify2
+package cache
 
 import (
 	"context"

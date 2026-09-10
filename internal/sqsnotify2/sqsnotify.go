@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
+	"github.com/koron/sqs-notify/internal/cache"
 	"github.com/koron/sqs-notify/internal/stage"
 	"golang.org/x/sync/semaphore"
 )
@@ -30,7 +31,7 @@ type SQSNotify struct {
 
 	l       sync.Mutex
 	results []*result
-	cache   Cache
+	cache   cache.Cache
 }
 
 // New creates a SQSNotify object with configuration.
@@ -63,7 +64,7 @@ func (sn *SQSNotify) logResult(r *result) {
 }
 
 // Run runs SQS notification service.
-func (sn *SQSNotify) Run(ctx context.Context, cache Cache) error {
+func (sn *SQSNotify) Run(ctx context.Context, cache cache.Cache) error {
 	svc, err := sn.newSQS(ctx)
 	if err != nil {
 		return err

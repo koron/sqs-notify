@@ -1,4 +1,4 @@
-package sqsnotify2
+package cache
 
 import (
 	"container/list"
@@ -12,7 +12,7 @@ import (
 	"github.com/koron/sqs-notify/internal/stage"
 )
 
-const minCapacity = maxMsg
+const minCapacity = 10 // sqsnotify2.maxMsg
 
 var (
 	errCacheFound    = errors.New("cache found")
@@ -39,7 +39,7 @@ type mcEntry struct {
 	stg stage.Stage
 }
 
-func newMemoryCache(capacity int) *memoryCache {
+func NewMemoryCache(capacity int) *memoryCache {
 	return &memoryCache{
 		c: capacity,
 		m: make(map[string]mcEntry),
@@ -128,7 +128,7 @@ func NewCache(ctx context.Context, name string) (Cache, error) {
 				return nil, err
 			}
 		}
-		return newMemoryCache(capacity), nil
+		return NewMemoryCache(capacity), nil
 
 	case "redis":
 		return newRedisCache(ctx, u)

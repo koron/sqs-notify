@@ -12,6 +12,7 @@ import (
 
 	valid "github.com/koron/go-valid"
 	"github.com/koron/hupwriter"
+	"github.com/koron/sqs-notify/internal/cache"
 	"github.com/koron/sqs-notify/internal/sqsnotify2"
 )
 
@@ -137,11 +138,11 @@ func main2() error {
 	}()
 	signal.Notify(sig, os.Interrupt)
 
-	cache, err := sqsnotify2.NewCache(ctx, cfg.CacheName)
+	c, err := cache.NewCache(ctx, cfg.CacheName)
 	if err != nil {
 		return err
 	}
-	defer cache.Close()
+	defer c.Close()
 
 	var mu sync.Mutex
 	var errs []error
@@ -151,7 +152,7 @@ func main2() error {
 	for i := 0; i < multiplier; i++ {
 		go func(id int) {
 			defer sg.Done()
-			err := sqsnotify2.New(cfg).Run(ctx, cache)
+			err := sqsnotify2.New(cfg).Run(ctx, c)
 			if isCancel(err) {
 				return
 			}
