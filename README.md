@@ -14,7 +14,7 @@ For old version (v1), check [doc/v1.md](./doc/v1.md).
 Install and upgrade.
 
 ```console
-$ go install github.com/koron/sqs-notify/v2/cmd/sqs-notify2@latest
+$ go install github.com/koron/sqs-notify/v2@latest
 ```
 
 ## Environment variables
@@ -77,12 +77,12 @@ From online help.
 
 Basic usage:
 
-    sqs-notify2 [-region {region}] -queue {queue name} {command and args}
+    sqs-notify [-region {region}] -queue {queue name} {command and args}
 
 1.  Prepare AWS auth information.
     1.  Use `~/.aws/credentials` (recomended).
 
-        sqs-notify2 supports `~/.aws/credentials` profiles.
+        sqs-notify supports `~/.aws/credentials` profiles.
         `-profile` option can choose the profile used to.  Example:
 
         ```ini
@@ -92,24 +92,24 @@ Basic usage:
         ```
 
         ```console
-        $ sqs-notify2 -profile my_sqs ...
+        $ sqs-notify -profile my_sqs ...
         ```
 
     2.  Use two environment variables.
         *   `AWS_ACCESS_KEY_ID`
         *   `AWS_SECRET_ACCESS_KEY`
 
-2.  Run sqs-notify2
+2.  Run sqs-notify
 
     ```console
-    $ sqs-notify2 -queue my_queue cat
+    $ sqs-notify -queue my_queue cat
     ```
 
     This example just copy messages to STDOUT.  If you want to access the queue
     via ap-northeast-1 region, use below command.
 
     ```console
-    $ sqs-notify2 -region ap-northeast-1 -queue my_queue cat
+    $ sqs-notify -region ap-northeast-1 -queue my_queue cat
     ```
 
 ### Name of regions
@@ -128,7 +128,7 @@ Basic usage:
 When `-logfile {FILE PATH}` is given, all messages which received are logged
 into the file.  If FILE PATH is `-`, it output all logs to STDOUT not file.
 
-Using `-pidfile {FILE PATH}` with `-logfile`, sqs-notify2 writes own PID to the
+Using `-pidfile {FILE PATH}` with `-logfile`, sqs-notify writes own PID to the
 file.  You can send SIGHUP to that PID to rotate log.
 
 ## Miscellaneous
@@ -137,7 +137,7 @@ file.  You can send SIGHUP to that PID to rotate log.
 
 When message doesn't have LF at EOF (end of file/message), the last line can't
 be handled by `read` shell command or so.  This is limitation of `read`
-command, not sqs-notify2.  Therefore this kind of scripts don't work correctly
+command, not sqs-notify.  Therefore this kind of scripts don't work correctly
 for messages without LF at EOF:
 
 ```sh
@@ -174,7 +174,7 @@ data=`cat /dev/stdin`
 
 ### sqs-echo
 
-sqs-echo is useful for debugging received SQS message with sqs-notify2.  It just
+sqs-echo is useful for debugging received SQS message with sqs-notify.  It just
 shows date, time, byte num and contents of received messages.  Example output
 is below:
 
@@ -186,7 +186,7 @@ is below:
 You can install sqs-echo with below command.
 
 ```
-$ go install github.com/koron/sqs-notify/cmd/sqs-echo@latest
+$ go install github.com/koron/sqs-notify/v2/cmd/sqs-echo@latest
 ```
 
 ## LICENSE
