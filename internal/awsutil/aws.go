@@ -1,3 +1,4 @@
+// Package awsutil provides utility functions for AWS
 package awsutil
 
 import (

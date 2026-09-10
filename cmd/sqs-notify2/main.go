@@ -152,7 +152,7 @@ func main2() error {
 		go func(id int) {
 			defer sg.Done()
 			err := sqsnotify2.New(cfg).Run(ctx, cache)
-			if err == nil || isCancel(err) {
+			if isCancel(err) {
 				return
 			}
 			mu.Lock()

@@ -1,3 +1,4 @@
+// Package stage provides state of a cache entry.
 package stage
 
 // Stage represents execution stages.

@@ -109,25 +109,25 @@ func TestSQSNotify(t *testing.T) {
 		}()
 
 		// Wait for queue creation by SQSNotify
-		var qUrl string
+		var qURL string
 		for i := 0; i < 50; i++ {
-			qUrlRes, err := sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
+			qURLRes, err := sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
 				QueueName: aws.String(queueName),
 			})
-			if err == nil && qUrlRes.QueueUrl != nil {
-				qUrl = *qUrlRes.QueueUrl
+			if err == nil && qURLRes.QueueUrl != nil {
+				qURL = *qURLRes.QueueUrl
 				break
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		if qUrl == "" {
+		if qURL == "" {
 			t.Fatalf("queue was not created in time")
 		}
 
 		// Send message to the created queue
 		_, err := sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
-			QueueUrl:    aws.String(qUrl),
+			QueueUrl:    aws.String(qURL),
 			MessageBody: aws.String("hello goaws succeed"),
 		})
 		if err != nil {
