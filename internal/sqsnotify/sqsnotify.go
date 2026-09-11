@@ -23,7 +23,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-const maxMsg = 10
+const MaxMsg = 10
 
 var discardLog = log.New(io.Discard, "", 0)
 
@@ -170,7 +170,7 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 	var round = 0
 	for {
 		// receive messages.
-		msgs, err := sn.receiveQ(ctx, client, &qu, maxMsg)
+		msgs, err := sn.receiveQ(ctx, client, &qu, MaxMsg)
 		if err != nil {
 			return err
 		}
@@ -211,7 +211,7 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 		}
 
 		// run as commands
-		sem := sn.newWeighted()
+		sem := semaphore.NewWeighted(int64(min(max(1, sn.Workers), MaxMsg)))
 		var wg sync.WaitGroup
 		for i, m := range msgs {
 			res := &result{round: round, index: i, msg: m}
@@ -448,14 +448,6 @@ func (sn *SQSNotify) handleCopyMessageFailure(err error, m *types.Message) {
 		msgID = *m.MessageId
 	}
 	sn.log().Printf("failed to pass message body: id=%s err=%s", msgID, err)
-}
-
-func (sn *SQSNotify) newWeighted() *semaphore.Weighted {
-	n := sn.Workers
-	if n < 0 || n > maxMsg {
-		n = 4
-	}
-	return semaphore.NewWeighted(int64(n))
 }
 
 func (sn *SQSNotify) clearResults() {

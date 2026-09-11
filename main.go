@@ -81,7 +81,10 @@ func parseFlags(args []string, output io.Writer) (*notifyParams, error) {
 
    Example to connect the redis on localhost: "redis://:6379"`)
 
-	fs.IntVar(&cfg.Workers, "workers", cfg.Workers, "num of workers")
+	workersMax := sqsnotify.MaxMsg
+	workersDefault := min(4, workersMax)
+	fs.Var(valid.Int(&cfg.Workers, workersDefault).Min(1).Max(workersMax),
+		"workers", "num of workers")
 	fs.Var(valid.Int(&multiplier, 1).Min(1), "multiplier", `pooling the SQS in multiple runner`)
 	fs.DurationVar(&cfg.Timeout, "timeout", 0, "timeout for command execution (default 0 - no timeout)")
 
@@ -124,10 +127,6 @@ func parseFlags(args []string, output io.Writer) (*notifyParams, error) {
 		cfg.WaitTime = &waitTimeSec
 	}
 
-	if cfg.Workers < 1 {
-		return nil, errors.New("\"-worker\" should be greater than 0")
-	}
-
 	return &notifyParams{
 		cfg:        cfg,
 		version:    version,
@@ -152,10 +151,6 @@ func main2() error {
 	multiplier := params.multiplier
 	logfile := params.logfile
 	pidfile := params.pidfile
-
-	if cfg.Workers > 10 {
-		log.Print("\"WARN: -worker 10+\" doesn't have any effects, check \"-multiplier\"")
-	}
 
 	// Setup logger.
 	// FIXME: test logging features.
