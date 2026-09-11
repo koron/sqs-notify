@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"testing"
 	"time"
 )
@@ -8,7 +9,7 @@ import (
 func TestParseFlagsAutoExtend(t *testing.T) {
 	t.Run("default flags", func(t *testing.T) {
 		args := []string{"-queue", "test-queue", "echo", "hello"}
-		params, err := parseFlags(args)
+		params, err := parseFlags(args, io.Discard)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -31,7 +32,7 @@ func TestParseFlagsAutoExtend(t *testing.T) {
 			"-auto-extend-max", "2h",
 			"echo", "hello",
 		}
-		params, err := parseFlags(args)
+		params, err := parseFlags(args, io.Discard)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -53,7 +54,7 @@ func TestParseFlagsAutoExtend(t *testing.T) {
 			"-auto-extend-factor", "0.5",
 			"echo", "hello",
 		}
-		_, err := parseFlags(args)
+		_, err := parseFlags(args, io.Discard)
 		if err == nil {
 			t.Errorf("expected error when auto-extend-factor < 1.0, got nil")
 		}
@@ -66,7 +67,7 @@ func TestParseFlagsAutoExtend(t *testing.T) {
 			"-auto-extend-factor", "10.5",
 			"echo", "hello",
 		}
-		_, err := parseFlags(args)
+		_, err := parseFlags(args, io.Discard)
 		if err == nil {
 			t.Errorf("expected error when auto-extend-factor > 10.0, got nil")
 		}
@@ -79,7 +80,7 @@ func TestParseFlagsAutoExtend(t *testing.T) {
 			"-auto-extend-max", "30s",
 			"echo", "hello",
 		}
-		_, err := parseFlags(args)
+		_, err := parseFlags(args, io.Discard)
 		if err == nil {
 			t.Errorf("expected error when auto-extend-max < 1m, got nil")
 		}
@@ -92,7 +93,7 @@ func TestParseFlagsAutoExtend(t *testing.T) {
 			"-auto-extend-max", "5h",
 			"echo", "hello",
 		}
-		_, err := parseFlags(args)
+		_, err := parseFlags(args, io.Discard)
 		if err == nil {
 			t.Errorf("expected error when auto-extend-max > 4h, got nil")
 		}
