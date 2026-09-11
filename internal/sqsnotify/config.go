@@ -33,8 +33,13 @@ type Config struct {
 	Workers      int
 	Timeout      time.Duration
 	RemovePolicy RemovePolicy
-	CmdName      string
-	CmdArgs      []string
+
+	AutoExtend       bool
+	AutoExtendFactor float64
+	AutoExtendMax    time.Duration
+
+	CmdName string
+	CmdArgs []string
 
 	Logger *log.Logger
 }
@@ -44,5 +49,8 @@ func NewConfig() *Config {
 	return &Config{
 		Region:  "us-east-1",
 		Workers: runtime.NumCPU(),
+
+		AutoExtendFactor: 2.0,
+		AutoExtendMax:    64 * time.Minute,
 	}
 }
