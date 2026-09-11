@@ -45,9 +45,11 @@ type notifyParams struct {
 	multiplier int
 }
 
-func parseFlags(args []string) (*notifyParams, error) {
+func parseFlags(args []string, output io.Writer) (*notifyParams, error) {
 	fs := flag.NewFlagSet("sqs-notify", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
+	if output != nil {
+		fs.SetOutput(output)
+	}
 	cfg := sqsnotify.NewConfig()
 
 	var (
@@ -101,6 +103,9 @@ func parseFlags(args []string) (*notifyParams, error) {
 	fs.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
 
 	if err := valid.Parse(fs, args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
 		return nil, err
 	}
 
@@ -133,7 +138,7 @@ func parseFlags(args []string) (*notifyParams, error) {
 }
 
 func main2() error {
-	params, err := parseFlags(os.Args[1:])
+	params, err := parseFlags(os.Args[1:], nil)
 	if err != nil {
 		return err
 	}
