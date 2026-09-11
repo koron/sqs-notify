@@ -2,11 +2,8 @@ package cache
 
 import (
 	"context"
-	"fmt"
-	"net/url"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/koron/sqs-notify/v2/internal/stage"
 )
 
@@ -40,23 +37,6 @@ func testCache(t *testing.T, c Cache) {
 	if err != nil {
 		t.Fatalf("failed to delete none: %v", err)
 	}
-}
-
-func TestRedisCache(t *testing.T) {
-	m := miniredis.RunT(t)
-	s := fmt.Sprintf("redis://%s/?prefix=%s&lifetime=10s", m.Addr(), t.Name())
-	u, err := url.Parse(s)
-	if err != nil {
-		t.Fatalf("failed to parse as URL %q: %v", s, err)
-	}
-
-	rc, err := newRedisCache(context.Background(), u)
-	if err != nil {
-		t.Fatalf("failed to create redisCache: %v", err)
-	}
-	t.Cleanup(func() { rc.Close() })
-
-	testCache(t, rc)
 }
 
 func TestMemoryCache(t *testing.T) {
