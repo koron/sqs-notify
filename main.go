@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	valid "github.com/koron/go-valid"
@@ -169,20 +170,8 @@ func main2() error {
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	sig := make(chan os.Signal, 1)
-	go func() {
-		for {
-			s := <-sig
-			if s == os.Interrupt {
-				cancel()
-				signal.Stop(sig)
-				close(sig)
-				return
-			}
-		}
-	}()
-	signal.Notify(sig, os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	c, err := cache.NewCache(ctx, cfg.CacheName)
 	if err != nil {
@@ -199,7 +188,7 @@ func main2() error {
 		go func(id int) {
 			defer sg.Done()
 			err := sqsnotify.New(cfg).Run(ctx, c)
-			if isCancel(err) {
+			if errors.Is(err, context.Canceled) {
 				return
 			}
 			mu.Lock()
@@ -215,10 +204,6 @@ func main2() error {
 	}
 
 	return nil
-}
-
-func isCancel(err error) bool {
-	return errors.Is(err, context.Canceled)
 }
 
 func main() {
