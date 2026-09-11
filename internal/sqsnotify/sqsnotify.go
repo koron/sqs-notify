@@ -31,14 +31,13 @@ var discardLog = log.New(io.Discard, "", 0)
 type SQSNotify struct {
 	Config
 
-	l       sync.Mutex
-	results []*result
-	cache   cache.Cache
+	cache          cache.Cache
+	sqsClient      *sqs.Client
+	queueURL       string
+	initialTimeout time.Duration
 
-	sqsClient *sqs.Client
-	queueURL  string
-
-	queueVisibilityTimeout time.Duration
+	resultMu sync.Mutex
+	results  []*result
 }
 
 // New creates a SQSNotify object with configuration.
@@ -47,8 +46,8 @@ func New(cfg *Config) *SQSNotify {
 		cfg = NewConfig()
 	}
 	return &SQSNotify{
-		Config:                 *cfg,
-		queueVisibilityTimeout: 30 * time.Second,
+		Config:         *cfg,
+		initialTimeout: 30 * time.Second,
 	}
 }
 
@@ -71,16 +70,31 @@ func (sn *SQSNotify) logResult(r *result) {
 	sn.log().Printf("\tNOT_EXECUTED\tstage:%[2]s error:%[1]s", r.err, r.stg)
 }
 
-// Run runs SQS notification service.
+// Run executes the SQS message monitoring/notification loop. Non-reentrant.
 func (sn *SQSNotify) Run(ctx context.Context, cache cache.Cache) error {
-	svc, err := sn.newSQS(ctx)
+	sqsClient, err := sn.newSQS(ctx)
 	if err != nil {
 		return err
 	}
-	sn.cache = cache
-	sn.sqsClient = svc
 
-	return sn.run(ctx, svc)
+	queueURL, err := sn.ensureQueue(ctx, sqsClient)
+	if err != nil {
+		return err
+	}
+
+	if sn.AutoExtend {
+		timeout, err := sn.getVisibilityTimeout(ctx, sqsClient, queueURL)
+		if err != nil {
+			return err
+		}
+		sn.initialTimeout = timeout
+	}
+
+	sn.cache = cache
+	sn.sqsClient = sqsClient
+	sn.queueURL = queueURL
+
+	return sn.run(ctx)
 }
 
 func (sn *SQSNotify) newSQS(ctx context.Context) (*sqs.Client, error) {
@@ -140,37 +154,32 @@ func (sn *SQSNotify) ensureQueue(ctx context.Context, client *sqs.Client) (strin
 	return *rCreate.QueueUrl, nil
 }
 
-func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
-	qu, err := sn.ensureQueue(ctx, client)
+func (sn *SQSNotify) getVisibilityTimeout(ctx context.Context, client *sqs.Client, queueURL string) (time.Duration, error) {
+	out, err := client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+		QueueUrl: &queueURL,
+		AttributeNames: []types.QueueAttributeName{
+			types.QueueAttributeNameVisibilityTimeout,
+		},
+	})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	sn.queueURL = qu
-
-	// Get visibility timeout.
-	if sn.AutoExtend {
-		out, err := client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
-			QueueUrl: &qu,
-			AttributeNames: []types.QueueAttributeName{
-				types.QueueAttributeNameVisibilityTimeout,
-			},
-		})
-		if err != nil {
-			return err
-		}
-		if timeout, ok := out.Attributes[string(types.QueueAttributeNameVisibilityTimeout)]; ok {
-			sec, err := strconv.Atoi(timeout)
-			if err != nil {
-				return err
-			}
-			sn.queueVisibilityTimeout = time.Duration(sec) * time.Second
-		}
+	timeout, ok := out.Attributes[string(types.QueueAttributeNameVisibilityTimeout)]
+	if !ok {
+		return 30 * time.Second, nil
 	}
+	sec, err := strconv.Atoi(timeout)
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(sec) * time.Second, nil
+}
 
+func (sn *SQSNotify) run(ctx context.Context) error {
 	var round = 0
 	for {
 		// receive messages.
-		msgs, err := sn.receiveQ(ctx, client, &qu, MaxMsg)
+		msgs, err := sn.receiveQ(ctx, MaxMsg)
 		if err != nil {
 			return err
 		}
@@ -189,7 +198,7 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 					ReceiptHandle: m.ReceiptHandle,
 				})
 			}
-			err := sn.deleteQ(ctx, client, &qu, entries)
+			err := sn.deleteQ(ctx, entries)
 			if err != nil {
 				return err
 			}
@@ -224,12 +233,14 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 			go func(r, n int, m types.Message, res *result) {
 				defer wg.Done()
 				res.stg = stage.Lock
+
 				err := sem.Acquire(ctx, 1)
 				if err != nil {
 					sn.addResult(res.withErr(err))
 					return
 				}
 				defer sem.Release(1)
+
 				res.stg = stage.Exec
 				err = sn.cacheUpdate(res, stage.Exec)
 				if err != nil {
@@ -241,6 +252,7 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 					sn.addResult(res.withErr(err))
 					return
 				}
+
 				res.stg = stage.Done
 				err = sn.cacheUpdate(res, stage.Done)
 				if err != nil {
@@ -254,7 +266,7 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 		extendCancel()
 
 		// delete messages
-		err = sn.deleteQ(ctx, client, &qu, sn.deleteEntries())
+		err = sn.deleteQ(ctx, sn.deleteEntries())
 		if err != nil {
 			return err
 		}
@@ -264,6 +276,8 @@ func (sn *SQSNotify) run(ctx context.Context, client *sqs.Client) error {
 }
 
 func (sn *SQSNotify) deleteEntries() []types.DeleteMessageBatchRequestEntry {
+	sn.resultMu.Lock()
+	defer sn.resultMu.Unlock()
 	var entries []types.DeleteMessageBatchRequestEntry
 	for _, r := range sn.results {
 		if !sn.shouldRemoveAfter(r) {
@@ -366,15 +380,15 @@ func (sn *SQSNotify) execCmd(ctx context.Context, m *types.Message) error {
 	return nil
 }
 
-func (sn *SQSNotify) receiveQ(ctx context.Context, client *sqs.Client, queueURL *string, max int32) ([]types.Message, error) {
+func (sn *SQSNotify) receiveQ(ctx context.Context, max int32) ([]types.Message, error) {
 	input := &sqs.ReceiveMessageInput{
-		QueueUrl:            queueURL,
+		QueueUrl:            &sn.queueURL,
 		MaxNumberOfMessages: max,
 	}
 	if sn.WaitTime != nil {
 		input.WaitTimeSeconds = int32(*sn.WaitTime)
 	}
-	out, err := client.ReceiveMessage(ctx, input)
+	out, err := sn.sqsClient.ReceiveMessage(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +396,7 @@ func (sn *SQSNotify) receiveQ(ctx context.Context, client *sqs.Client, queueURL 
 }
 
 func (sn *SQSNotify) autoExtendQLoop(ctx context.Context, entries []types.ChangeMessageVisibilityBatchRequestEntry) {
-	currTimeout := sn.queueVisibilityTimeout
+	currTimeout := sn.initialTimeout
 	for {
 		wait := max(currTimeout*4/5, currTimeout-15*time.Second)
 		if wait < time.Second {
@@ -396,20 +410,27 @@ func (sn *SQSNotify) autoExtendQLoop(ctx context.Context, entries []types.Change
 		}
 		// Extend visibility timeout of the message.
 		next := min(time.Duration(float64(currTimeout)*sn.AutoExtendFactor), sn.AutoExtendMax, 12*time.Hour)
-		nextSec := int32(next.Seconds())
-		for i := range entries {
-			entries[i].VisibilityTimeout = nextSec
-		}
-		_, err := sn.sqsClient.ChangeMessageVisibilityBatch(ctx, &sqs.ChangeMessageVisibilityBatchInput{
-			Entries:  entries,
-			QueueUrl: &sn.queueURL,
-		})
+		err := sn.changeVisibilityQ(ctx, int32(next.Seconds()), entries)
 		if err != nil {
 			sn.log().Printf("failed to extend message visibility timeout: err=%s", err)
 			return
 		}
 		currTimeout = next
 	}
+}
+
+func (sn *SQSNotify) changeVisibilityQ(ctx context.Context, sec int32, entries []types.ChangeMessageVisibilityBatchRequestEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	for i := range entries {
+		entries[i].VisibilityTimeout = sec
+	}
+	_, err := sn.sqsClient.ChangeMessageVisibilityBatch(ctx, &sqs.ChangeMessageVisibilityBatchInput{
+		Entries:  entries,
+		QueueUrl: &sn.queueURL,
+	})
+	return err
 }
 
 type DeleteFailure struct {
@@ -420,13 +441,13 @@ func (df *DeleteFailure) Error() string {
 	return fmt.Sprintf("failed to delete %d messages", len(df.Failed))
 }
 
-func (sn *SQSNotify) deleteQ(ctx context.Context, client *sqs.Client, queueURL *string, entries []types.DeleteMessageBatchRequestEntry) error {
+func (sn *SQSNotify) deleteQ(ctx context.Context, entries []types.DeleteMessageBatchRequestEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
 
-	out, err := client.DeleteMessageBatch(ctx, &sqs.DeleteMessageBatchInput{
-		QueueUrl: queueURL,
+	out, err := sn.sqsClient.DeleteMessageBatch(ctx, &sqs.DeleteMessageBatchInput{
+		QueueUrl: &sn.queueURL,
 		Entries:  entries,
 	})
 	if err != nil {
@@ -451,16 +472,16 @@ func (sn *SQSNotify) handleCopyMessageFailure(err error, m *types.Message) {
 }
 
 func (sn *SQSNotify) clearResults() {
-	sn.l.Lock()
+	sn.resultMu.Lock()
 	sn.results = sn.results[:0]
-	sn.l.Unlock()
+	sn.resultMu.Unlock()
 }
 
 func (sn *SQSNotify) addResult(r *result) {
 	sn.logResult(r)
-	sn.l.Lock()
+	sn.resultMu.Lock()
 	sn.results = append(sn.results, r)
-	sn.l.Unlock()
+	sn.resultMu.Unlock()
 }
 
 type result struct {

@@ -306,10 +306,6 @@ func TestSQSNotify(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		if sn.queueVisibilityTimeout <= 0 {
-			t.Errorf("expected queueVisibilityTimeout > 0, got %v", sn.queueVisibilityTimeout)
-		}
-
 		_, err = sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
 			QueueUrl:    createRes.QueueUrl,
 			MessageBody: aws.String("hello goaws auto extend"),
@@ -324,6 +320,10 @@ func TestSQSNotify(t *testing.T) {
 		runErr := <-errCh
 		if runErr != nil && !errorsIsCanceled(runErr) {
 			t.Fatalf("SQSNotify.Run returned unexpected error: %v", runErr)
+		}
+
+		if sn.initialTimeout <= 0 {
+			t.Errorf("expected initialTimeout > 0, got %v", sn.initialTimeout)
 		}
 	})
 
@@ -383,8 +383,13 @@ func TestSQSNotify(t *testing.T) {
 	})
 
 	t.Run("autoExtendQLoop Terminates on Context Cancellation", func(t *testing.T) {
+		// Note: this only exercises the first iteration's ctx.Done() select,
+		// i.e. termination while waiting before any API call. sn.sqsClient
+		// stays nil and entries is empty, so reaching changeVisibilityQ is
+		// safe only thanks to its empty-entries guard. Termination during an
+		// in-flight batch call is not covered here.
 		sn := New(nil)
-		sn.queueVisibilityTimeout = 100 * time.Millisecond
+		sn.initialTimeout = 100 * time.Millisecond
 		sn.AutoExtendFactor = 2.0
 		sn.AutoExtendMax = 1 * time.Minute
 
