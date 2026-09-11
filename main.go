@@ -37,7 +37,7 @@ func toRP(s string) sqsnotify.RemovePolicy {
 	}
 }
 
-type cliParams struct {
+type notifyParams struct {
 	cfg        *sqsnotify.Config
 	version    bool
 	logfile    string
@@ -45,7 +45,7 @@ type cliParams struct {
 	multiplier int
 }
 
-func parseFlags(args []string) (*cliParams, error) {
+func parseFlags(args []string) (*notifyParams, error) {
 	fs := flag.NewFlagSet("sqs-notify", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	cfg := sqsnotify.NewConfig()
@@ -105,7 +105,7 @@ func parseFlags(args []string) (*cliParams, error) {
 	}
 
 	if version {
-		return &cliParams{cfg: cfg, version: true}, nil
+		return &notifyParams{cfg: cfg, version: true}, nil
 	}
 
 	if fs.NArg() < 1 {
@@ -123,7 +123,7 @@ func parseFlags(args []string) (*cliParams, error) {
 		return nil, errors.New("\"-worker\" should be greater than 0")
 	}
 
-	return &cliParams{
+	return &notifyParams{
 		cfg:        cfg,
 		version:    version,
 		logfile:    logfile,
