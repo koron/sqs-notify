@@ -25,7 +25,9 @@ func newRedisCache(ctx context.Context, u *url.URL) (*redisCache, error) {
 	var (
 		err error
 		opt = &redis.Options{Addr: u.Host}
-		rc  = &redisCache{}
+		rc  = &redisCache{
+			lifetime: time.Hour,
+		}
 	)
 	if u.User != nil {
 		opt.Password, _ = u.User.Password()
