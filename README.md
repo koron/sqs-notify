@@ -29,6 +29,12 @@ $ go install github.com/koron/sqs-notify/v2@latest
 From online help.
 
 ```
+  -auto-extend
+    	enables automatic message visibility extension
+  -auto-extend-factor value
+    	multiplier for extending the visibility timeout exponentially (default 2)
+  -auto-extend-max value
+    	maximum visibility timeout allowed for a single extension call (default 1h4m0s)
   -cache string
     	cache name or connection URL
     	 * memory://?capacity=1000
@@ -44,6 +50,10 @@ From online help.
     	create queue if not exists
   -endpoint string
     	Endpoint of SQS
+  -grace-period-cleanup value
+    	grace period required for cancellation processing (default 30s)
+  -grace-period-command value
+    	grace period before cancelling the command (default 10s)
   -logfile string
     	log file path
   -max-retries int
@@ -69,8 +79,8 @@ From online help.
     	show version
   -wait-time-seconds int
     	wait time in seconds for next polling. (default -1, disabled, use queue default) (default -1)
-  -workers int
-    	num of workers (default 16)
+  -workers value
+    	num of workers (default 4)
 ```
 
 ## Guide
@@ -112,16 +122,10 @@ Basic usage:
     $ sqs-notify -region ap-northeast-1 -queue my_queue cat
     ```
 
-### Name of regions
+### AWS Regions
 
-*   `us-east-1` (default)
-*   `us-west-1`
-*   `us-west-2`
-*   `eu-west-1`
-*   `ap-southeast-1`
-*   `ap-southeast-2`
-*   `ap-northeast-1`
-*   `sp-east-1`
+The default is `us-east-1`.  For details on AWS Regions, please check
+<https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html>.
 
 ### Logging
 
