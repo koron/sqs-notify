@@ -13,6 +13,8 @@ const (
 	Lock
 	// Exec means "executing"
 	Exec
+	// Canceled means "canceled"
+	Canceled
 	// Done means "done execution"
 	Done
 )
@@ -32,6 +34,8 @@ func (stg Stage) String() string {
 		return "Lock"
 	case Exec:
 		return "Exec"
+	case Canceled:
+		return "Canceled"
 	case Done:
 		return "Done"
 	default:

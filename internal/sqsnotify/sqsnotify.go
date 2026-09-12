@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -35,6 +36,8 @@ type SQSNotify struct {
 	sqsClient      *sqs.Client
 	queueURL       string
 	initialTimeout time.Duration
+
+	extendedTimeout atomic.Bool
 
 	resultMu sync.Mutex
 	results  []*result
@@ -175,9 +178,32 @@ func (sn *SQSNotify) getVisibilityTimeout(ctx context.Context, client *sqs.Clien
 	return time.Duration(sec) * time.Second, nil
 }
 
+// createGracefulContext creates a new context.Context that remains active for
+// an additional grace period after the parent context is cancelled.
+func createGracefulContext(parent context.Context, gracePeriod time.Duration) (context.Context, context.CancelFunc) {
+	baseCtx := context.WithoutCancel(parent)
+	graceCtx, cancel := context.WithCancel(baseCtx)
+	stop := context.AfterFunc(parent, func() {
+		timer := time.AfterFunc(gracePeriod, func() {
+			cancel()
+		})
+		_ = timer
+	})
+	return graceCtx, func() {
+		stop()
+		cancel()
+	}
+}
+
 func (sn *SQSNotify) run(ctx context.Context) error {
+	commandCtx, cmdCancel := createGracefulContext(ctx, sn.GracePeriodCommand)
+	defer cmdCancel()
+	cleanupCtx, deleteCancel := createGracefulContext(ctx, sn.GracePeriodCleanup)
+	defer deleteCancel()
+
 	var round = 0
 	for {
+		sn.extendedTimeout.Store(false)
 		// receive messages.
 		msgs, err := sn.receiveQ(ctx, MaxMsg)
 		if err != nil {
@@ -236,6 +262,9 @@ func (sn *SQSNotify) run(ctx context.Context) error {
 
 				err := sem.Acquire(ctx, 1)
 				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						sn.cacheDelete(res, stage.Canceled)
+					}
 					sn.addResult(res.withErr(err))
 					return
 				}
@@ -247,8 +276,12 @@ func (sn *SQSNotify) run(ctx context.Context) error {
 					sn.addResult(res.withErr(err))
 					return
 				}
-				err = sn.execCmd(ctx, &m)
+
+				err = sn.execCmd(commandCtx, &m)
 				if err != nil {
+					if errors.Is(commandCtx.Err(), context.Canceled) {
+						sn.cacheDelete(res, stage.Canceled)
+					}
 					sn.addResult(res.withErr(err))
 					return
 				}
@@ -265,30 +298,56 @@ func (sn *SQSNotify) run(ctx context.Context) error {
 		wg.Wait()
 		extendCancel()
 
-		// delete messages
-		err = sn.deleteQ(ctx, sn.deleteEntries())
-		if err != nil {
-			return err
+		resetEntries, deleteEntries := sn.cleanupResults()
+		if len(resetEntries) > 0 && sn.extendedTimeout.Load() {
+			err := sn.changeVisibilityQ(cleanupCtx, 0, resetEntries)
+			if err != nil {
+				sn.log().Printf("failed to reset message visiblity: %s", err)
+			}
 		}
+		if len(deleteEntries) > 0 {
+			err := sn.deleteQ(cleanupCtx, deleteEntries)
+			if err != nil {
+				sn.log().Printf("failed to delete messages: %s", err)
+			}
+		}
+
 		sn.clearResults()
 		round++
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 	}
 }
 
-func (sn *SQSNotify) deleteEntries() []types.DeleteMessageBatchRequestEntry {
+func (sn *SQSNotify) cleanupResults() ([]types.ChangeMessageVisibilityBatchRequestEntry, []types.DeleteMessageBatchRequestEntry) {
 	sn.resultMu.Lock()
 	defer sn.resultMu.Unlock()
-	var entries []types.DeleteMessageBatchRequestEntry
+	var (
+		resetEntries  []types.ChangeMessageVisibilityBatchRequestEntry
+		deleteEntries []types.DeleteMessageBatchRequestEntry
+	)
 	for _, r := range sn.results {
-		if !sn.shouldRemoveAfter(r) {
+		if r.stg == stage.Canceled {
+			resetEntries = append(resetEntries, types.ChangeMessageVisibilityBatchRequestEntry{
+				Id:            r.msg.MessageId,
+				ReceiptHandle: r.msg.ReceiptHandle,
+			})
+			// For the result of `stage.Canceled`, `shouldRemoveAfter` always
+			// returns `false`, so there is no need to determine whether to
+			// delete it.
 			continue
 		}
-		entries = append(entries, types.DeleteMessageBatchRequestEntry{
-			Id:            r.msg.MessageId,
-			ReceiptHandle: r.msg.ReceiptHandle,
-		})
+		if sn.shouldRemoveAfter(r) {
+			deleteEntries = append(deleteEntries, types.DeleteMessageBatchRequestEntry{
+				Id:            r.msg.MessageId,
+				ReceiptHandle: r.msg.ReceiptHandle,
+			})
+		}
 	}
-	return entries
+	sn.results = sn.results[:0]
+	return resetEntries, deleteEntries
 }
 
 func (sn *SQSNotify) cacheInsert(r *result, stg stage.Stage) error {
@@ -314,6 +373,14 @@ func (sn *SQSNotify) cacheUpdate(r *result, stg stage.Stage) error {
 		return err
 	}
 	return nil
+}
+
+func (sn *SQSNotify) cacheDelete(r *result, stg stage.Stage) error {
+	r.stg = stg
+	if r.msg.MessageId == nil {
+		return nil
+	}
+	return sn.cache.Delete(*r.msg.MessageId)
 }
 
 func (sn *SQSNotify) shouldRemoveAfter(r *result) bool {
@@ -416,6 +483,7 @@ func (sn *SQSNotify) autoExtendQLoop(ctx context.Context, entries []types.Change
 			return
 		}
 		currTimeout = next
+		sn.extendedTimeout.Store(true)
 	}
 }
 

@@ -102,6 +102,11 @@ func parseFlags(args []string, output io.Writer) (*notifyParams, error) {
 	fs.Var(valid.Duration(&cfg.AutoExtendMax, 64*time.Minute).Min(time.Minute).Max(4*time.Hour),
 		"auto-extend-max", `maximum visibility timeout allowed for a single extension call`)
 
+	fs.Var(valid.Duration(&cfg.GracePeriodCommand, 10*time.Second).Min(time.Second),
+		"grace-period-command", `grace period before cancelling the command`)
+	fs.Var(valid.Duration(&cfg.GracePeriodCleanup, 30*time.Second).Min(time.Second),
+		"grace-period-cleanup", `grace period required for cancellation processing`)
+
 	fs.BoolVar(&version, "version", false, "show version")
 	fs.StringVar(&logfile, "logfile", "", "log file path")
 	fs.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
@@ -144,8 +149,12 @@ func main2() error {
 	}
 
 	if params.version {
-		fmt.Println("sqs-notify2 version:", sqsnotify.Version)
+		fmt.Println("sqs-notify version:", sqsnotify.Version)
 		os.Exit(1)
+	}
+
+	if params.cfg.GracePeriodCleanup <= params.cfg.GracePeriodCommand {
+		return errors.New("grace period for cancel should be longer than grace period for command")
 	}
 
 	cfg := params.cfg

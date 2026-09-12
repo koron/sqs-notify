@@ -38,6 +38,9 @@ type Config struct {
 	AutoExtendFactor float64
 	AutoExtendMax    time.Duration
 
+	GracePeriodCommand time.Duration
+	GracePeriodCleanup time.Duration
+
 	CmdName string
 	CmdArgs []string
 
@@ -52,5 +55,8 @@ func NewConfig() *Config {
 
 		AutoExtendFactor: 2.0,
 		AutoExtendMax:    64 * time.Minute,
+
+		GracePeriodCommand: 10 * time.Second,
+		GracePeriodCleanup: 30 * time.Second,
 	}
 }
