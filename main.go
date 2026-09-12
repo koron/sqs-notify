@@ -182,6 +182,28 @@ func main2() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	stopLog := context.AfterFunc(ctx, func() {
+		logger := cfg.Logger
+		if logger == nil {
+			logger = log.Default()
+		}
+		logger.Printf("received signal, starting graceful shutdown (waiting up to %s)...", cfg.GracePeriodCleanup)
+		logger.Println("press Ctrl+C again to force exit")
+		// Create a channel to receive the second SIGINT/SIGTERM and wait.
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			defer signal.Stop(sigCh)
+			select {
+			case <-sigCh:
+				logger.Println("received second signal, forcing exit now")
+				os.Exit(1)
+			case <-ctx.Done():
+			}
+		}()
+	})
+	defer stopLog()
+
 	c, err := cache.NewCache(ctx, cfg.CacheName)
 	if err != nil {
 		return err
