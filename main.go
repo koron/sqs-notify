@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	valid "github.com/koron/go-valid"
@@ -101,6 +102,11 @@ func parseFlags(args []string, output io.Writer) (*notifyParams, error) {
 	fs.Var(valid.Duration(&cfg.AutoExtendMax, 64*time.Minute).Min(time.Minute).Max(4*time.Hour),
 		"auto-extend-max", `maximum visibility timeout allowed for a single extension call`)
 
+	fs.Var(valid.Duration(&cfg.GracePeriodCommand, 10*time.Second).Min(time.Second),
+		"grace-period-command", `grace period before cancelling the command`)
+	fs.Var(valid.Duration(&cfg.GracePeriodCleanup, 30*time.Second).Min(time.Second),
+		"grace-period-cleanup", `grace period required for cancellation processing`)
+
 	fs.BoolVar(&version, "version", false, "show version")
 	fs.StringVar(&logfile, "logfile", "", "log file path")
 	fs.StringVar(&pidfile, "pidfile", "", "PID file path (require -logfile)")
@@ -143,8 +149,12 @@ func main2() error {
 	}
 
 	if params.version {
-		fmt.Println("sqs-notify2 version:", sqsnotify.Version)
+		fmt.Println("sqs-notify version:", sqsnotify.Version)
 		os.Exit(1)
+	}
+
+	if params.cfg.GracePeriodCleanup <= params.cfg.GracePeriodCommand {
+		return errors.New("grace period for cancel should be longer than grace period for command")
 	}
 
 	cfg := params.cfg
@@ -169,20 +179,8 @@ func main2() error {
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	sig := make(chan os.Signal, 1)
-	go func() {
-		for {
-			s := <-sig
-			if s == os.Interrupt {
-				cancel()
-				signal.Stop(sig)
-				close(sig)
-				return
-			}
-		}
-	}()
-	signal.Notify(sig, os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	c, err := cache.NewCache(ctx, cfg.CacheName)
 	if err != nil {
@@ -199,7 +197,7 @@ func main2() error {
 		go func(id int) {
 			defer sg.Done()
 			err := sqsnotify.New(cfg).Run(ctx, c)
-			if isCancel(err) {
+			if errors.Is(err, context.Canceled) {
 				return
 			}
 			mu.Lock()
@@ -215,10 +213,6 @@ func main2() error {
 	}
 
 	return nil
-}
-
-func isCancel(err error) bool {
-	return errors.Is(err, context.Canceled)
 }
 
 func main() {
