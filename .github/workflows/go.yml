@@ -34,6 +34,9 @@ jobs:
         while read -r path dir; do
           [ -z "$path" ] && continue
           name=$(basename "$path")
+          if [[ "$name" =~ ^v[1-9][0-9]*$ ]]; then
+            name=$(basename "$(dirname "$path")")
+          fi
           if [ -f "$dir/.norelease" ] ; then
             printf "Skipped %s\t(%s), due to %s/.norelease found\n" "$name" "$dir" "$dir"
           else

@@ -1,4 +1,4 @@
-// Package sqsnotify provides sqs-notify2 core feature.
+// Package sqsnotify provides sqs-notify core feature.
 package sqsnotify
 
 import (
