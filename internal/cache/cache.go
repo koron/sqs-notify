@@ -1,3 +1,4 @@
+// Package cache provides message cache with memory and redis backends.
 package cache
 
 import (
