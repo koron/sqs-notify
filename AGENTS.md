@@ -1,33 +1,35 @@
 # AGENTS.md
 
-Go module `github.com/koron/sqs-notify` (go 1.26). CLI that polls an SQS queue
-and executes a command per message (message body on STDIN).
+Go module `github.com/koron/sqs-notify/v2` (go 1.26). CLI that polls an SQS
+queue and executes a command per message (message body on STDIN).
 
 ## Layout
 
-- Root package (`main.go`, `jobs.go`, `daemon.go`, `config.go`): legacy v1.
-  Docs: `doc/v1.md`. Do not extend v1; new work goes to v2.
-- `sqsnotify2/`: v2 library. `cmd/sqs-notify2/`: current entrypoint
-  (installed via `go install github.com/koron/sqs-notify/cmd/sqs-notify2@latest`).
+- Root package (`main.go`): the `sqs-notify` v2 CLI (flag parsing, daemon,
+  log/pidfile, graceful shutdown wiring).
+- `internal/sqsnotify`: core library (queue polling, workers, remove
+  policies, config).
+- `internal/cache`: message cache (`memory://` and `redis://` backends);
+  `internal/stage`: cache-entry lifecycle states.
 - `cmd/sqs-echo`, `cmd/sqs-send`: helper CLIs. `cmd/daemon-demo`: shell
   scripts only (demo for daemon/log rotation; no Go code).
-- `awsutil/`: credential loading (platform-split `aws_windows.go` /
-  `aws_others.go`).
-- The root `.norelease` file excludes the legacy v1 binary from CI release
-  builds; CI releases every other `main` package.
+- `doc/v1.md`: docs for the removed legacy v1; do not resurrect v1 code.
+- CI releases every `main` package (root `sqs-notify`, `sqs-echo`,
+  `sqs-send`); drop a `.norelease` file in a package dir to opt it out.
 
 ## Commands
 
-- `make build` — `go build ./...`
-- `make test` — `go test ./...`
-- Single test: `go test ./sqsnotify2/ -run TestName`
-- `make checkall` — `go vet` + `staticcheck` (requires `staticcheck` binary;
-  `staticcheck.conf` enables all checks)
+- `make build` — `go build -gcflags '-e' ./...`
+- `make test` — `go test ./...` (`make race` adds `-race`)
+- Single test: `go test ./internal/sqsnotify/ -run TestName`
+- `make checkall` — `go vet` + `staticcheck` (requires the `staticcheck`
+  binary; `staticcheck.conf` enables all checks)
 - CI (`.github/workflows/go.yml`, on push, multi-OS): only runs
   `go test ./...` plus release builds. No lint in CI.
 
 ## Tests
 
-- No external services needed: `sqsnotify2` tests spin up a local GoAWS mock
-  SQS server (`servertest`) on `127.0.0.1:0` with mock AWS credentials.
-- Redis cache tests in `sqsnotify2/cache_test.go` skip unless `REDIS_URL` is set.
+- No external services needed: `internal/sqsnotify` tests spin up a local
+  GoAWS mock SQS server (`servertest`) on `127.0.0.1:0` with mock AWS
+  credentials set inside the tests; `internal/cache` redis tests use
+  miniredis.
