@@ -3,8 +3,7 @@ TEST_PACKAGE ?= ./...
 .PHONY: build
 build:
 	@if [ -n "$$(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./...)" ] ; then \
-	  mkdir -p _build ; \
-	  ( set -x ; go build -o _build -gcflags '-e' ./... ) ; \
+	  ( set -x ; go build -o _build/ -gcflags '-e' ./... ) ; \
 	else \
 	  ( set -x ; go build -gcflags '-e' ./... ) ; \
 	fi
@@ -58,4 +57,4 @@ upgradable-all:
 	@go list -m -u -f '{{if .Update}}{{.Path}} {{.Version}} [{{.Update.Version}}]{{end}}' all
 
 # based on: github.com/koron-go/_skeleton/Makefile
-# $Hash:d971b09e8ccad54f8c923431a0227116d502391241796405ac927f8e$
+# $Hash:5740dbd08ad1f0dabc56331f39d2b32d2512dfcd36d26344add2c78e$
